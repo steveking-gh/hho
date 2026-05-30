@@ -4,3 +4,4 @@ pub mod pane;
 pub mod resize_handle;
 pub mod header;
 pub mod month_modal;
+pub mod assign_modal;

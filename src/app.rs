@@ -16,6 +16,7 @@ use crate::components::{
     header::Header,
     mapping_modal::MappingModal,
     month_modal::MonthModal,
+    assign_modal::AssignModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
 };
@@ -219,9 +220,32 @@ pub fn App() -> impl IntoView {
             return;
         }
 
-        // Suppress navigation while the mapping modal is open.
-        if state.pending_mapping.get_untracked().is_some() {
+        // Suppress navigation while any modal is open.
+        if state.pending_mapping.get_untracked().is_some()
+            || state.assign_modal_item.get_untracked().is_some()
+            || state.is_month_modal_open.get_untracked()
+        {
             return;
+        }
+
+        // ── Enter key handling ────────────────────────────────────────────────
+        if key == "Enter" {
+            let pane = state.active_pane.get_untracked();
+            if pane == ActivePane::Middle {
+                let items = state.middle_items.get_untracked();
+                let sel = state.middle_sel.get_untracked();
+                if let Some(idx) = sel {
+                    if idx < items.len() {
+                        ev.prevent_default();
+                        let selected_item = items[idx].clone();
+                        state.assign_modal_item.set(Some(selected_item));
+                        state.log(format!(
+                            "[KeyDown] Enter  →  opening auto-assign modal for row {idx}"
+                        ));
+                        return;
+                    }
+                }
+            }
         }
 
         // ── Arrow-key guard ───────────────────────────────────────────────────
@@ -360,6 +384,9 @@ pub fn App() -> impl IntoView {
 
             // Month selection modal: rendered only while open.
             {move || state.is_month_modal_open.get().then(|| view! { <MonthModal /> })}
+
+            // Auto-assign modal: rendered only while an item is being assigned.
+            {move || state.assign_modal_item.get().map(|item| view! { <AssignModal item=item /> })}
         </div>
     }
 }

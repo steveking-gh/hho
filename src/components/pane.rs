@@ -101,6 +101,7 @@ pub fn Pane(
                                     class="row-item"
                                     class:selected=is_selected
                                     class:credit=move || item.direction == hho_types::Direction::Credit
+                                    class:auto-matched=move || item.auto_matched
                                     on:click=move |e| {
                                         e.stop_propagation();
                                         let was_pane = state.active_pane.get_untracked();

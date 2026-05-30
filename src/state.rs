@@ -22,8 +22,8 @@ fn format_txn(t: &Transaction) -> String {
 /// Identifies which resize boundary is being dragged.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DragTarget {
-    LeftHandle,    // vertical divider: Joint | Uncategorized
-    RightHandle,   // vertical divider: Uncategorized | Mine
+    LeftHandle,    // vertical divider: Joint | Unassigned
+    RightHandle,   // vertical divider: Unassigned | Mine
     TopHandle,     // horizontal divider: top-section | Ignored pane
     BottomHandle,  // horizontal divider: Ignored pane | Debug panel
 }
@@ -88,6 +88,10 @@ pub struct AppState {
 
     // ── Async operations guard ────────────────────────────────────────────────
     pub is_loading_file: RwSignal<bool>,
+
+    // ── Auto-assign rules and modal state ─────────────────────────────────────
+    pub auto_assign_rules: RwSignal<Vec<hho_types::AutoAssignRule>>,
+    pub assign_modal_item: RwSignal<Option<Item>>,
 }
 
 impl AppState {
@@ -119,6 +123,8 @@ impl AppState {
             current_institution: RwSignal::new(None),
             is_month_modal_open: RwSignal::new(false),
             is_loading_file: RwSignal::new(false),
+            auto_assign_rules: RwSignal::new(vec![]),
+            assign_modal_item: RwSignal::new(None),
         };
         // Sets default month and year to previous calendar month from current date.
         let now = js_sys::Date::new_0();
@@ -130,14 +136,20 @@ impl AppState {
         app
     }
 
-    /// Replace the Uncategorized pane with parsed transactions, select the
+    /// Replace the Unassigned pane with parsed transactions, select the
     /// first row, and activate the pane.
     pub fn populate_transactions(self, institution: &str, txns: Vec<Transaction>) {
         self.raw_transactions.set(txns);
         self.current_institution.set(Some(institution.to_string()));
-        self.apply_month_filter();
-        self.active_pane.set(ActivePane::Middle);
-        self.refresh_recent_files();
+        let state = self;
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Ok(rules) = crate::ipc::get_auto_assign_rules().await {
+                state.auto_assign_rules.set(rules);
+            }
+            state.apply_month_filter();
+            state.active_pane.set(ActivePane::Middle);
+            state.refresh_recent_files();
+        });
     }
 
     pub fn items_for(self, pane: ActivePane) -> RwSignal<Vec<Item>> {
@@ -192,8 +204,11 @@ impl AppState {
                 format!("no-op: {} sel={idx} out of range", from)
             }
             Some(idx) => {
+                let mut from_items = from_items;
+                // Clear the auto-matched flag upon manual movement.
+                from_items[idx].auto_matched = false;
                 let moved_label = from_items[idx].label.clone();
-                
+
                 // Tracks the ID of the selected item in target pane to restore it after sorting.
                 let selected_id_in_to = to_sel.and_then(|t_idx| to_items.get(t_idx).map(|item| item.id));
 
@@ -232,22 +247,70 @@ impl AppState {
         // Sorts transactions chronologically from oldest to youngest.
         filtered.sort_by(|a, b| a.date.cmp(&b.date));
 
-        let count = filtered.len();
-        let items: Vec<Item> = filtered
+        let rules = self.auto_assign_rules.get_untracked();
+        let compiled_rules: Vec<(regex::Regex, ActivePane)> = rules
             .iter()
-            .map(|t| Item {
+            .filter_map(|r| {
+                let pane = match r.pane.as_str() {
+                    "left" => ActivePane::Left,
+                    "right" => ActivePane::Right,
+                    "bottom" => ActivePane::Bottom,
+                    _ => return None,
+                };
+                regex::Regex::new(&r.regex).ok().map(|re| (re, pane))
+            })
+            .collect();
+
+        let mut left = vec![];
+        let mut middle = vec![];
+        let mut right = vec![];
+        let mut bottom = vec![];
+
+        for t in filtered {
+            let mut matched_pane = None;
+            for (re, pane) in &compiled_rules {
+                if re.is_match(&t.vendor) {
+                    matched_pane = Some(*pane);
+                    break;
+                }
+            }
+
+            let item = Item {
                 id: next_item_id(),
-                label: format_txn(t),
+                label: format_txn(&t),
                 amount_cents: t.amount_cents,
                 direction: t.direction,
                 date: t.date.clone(),
-            })
-            .collect();
-        
-        self.middle_items.set(items);
-        self.middle_sel.set(if count > 0 { Some(0) } else { None });
+                auto_matched: matched_pane.is_some(),
+            };
+
+            match matched_pane {
+                Some(ActivePane::Left) => left.push(item),
+                Some(ActivePane::Right) => right.push(item),
+                Some(ActivePane::Bottom) => bottom.push(item),
+                _ => middle.push(item),
+            }
+        }
+
+        let left_len = left.len();
+        let middle_len = middle.len();
+        let right_len = right.len();
+        let bottom_len = bottom.len();
+
+        self.left_items.set(left);
+        self.middle_items.set(middle);
+        self.right_items.set(right);
+        self.bottom_items.set(bottom);
+
+        self.left_sel.set(if left_len > 0 { Some(0) } else { None });
+        self.middle_sel.set(if middle_len > 0 { Some(0) } else { None });
+        self.right_sel.set(if right_len > 0 { Some(0) } else { None });
+        self.bottom_sel.set(if bottom_len > 0 { Some(0) } else { None });
+
+        let count = left_len + middle_len + right_len + bottom_len;
         self.log(format!(
-            "[Filter] Applied {year}-{month:02} to \"{inst}\" → {count} transactions loaded into Uncategorized"
+            "[Filter] Applied {year}-{month:02} to \"{inst}\" → {count} transactions loaded (Unassigned={middle_len}, auto-assigned={})",
+            left_len + right_len + bottom_len
         ));
     }
 }

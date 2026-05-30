@@ -7,8 +7,8 @@
 use wasm_bindgen::prelude::*;
 
 use hho_types::{
-    Institution, LayoutConfig, OpenCsvArgs, OpenResult, SaveLayoutArgs, SaveMappingArgs,
-    SaveWindowSizeArgs, Transaction,
+    AutoAssignRule, Institution, LayoutConfig, OpenCsvArgs, OpenResult, SaveLayoutArgs,
+    SaveMappingArgs, SaveWindowSizeArgs, Transaction,
 };
 
 #[wasm_bindgen]
@@ -84,6 +84,23 @@ pub async fn save_window_size(width: f64, height: f64) {
 /// Fetches the recent CSV file paths.
 pub async fn get_recent_files() -> Result<Vec<String>, String> {
     call_unit("get_recent_files").await
+}
+
+/// Fetches the auto-assign rules.
+pub async fn get_auto_assign_rules() -> Result<Vec<AutoAssignRule>, String> {
+    call_unit("get_auto_assign_rules").await
+}
+
+/// Arguments for the `save_auto_assign_rule` command.
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAutoAssignRuleArgs {
+    pub rule: AutoAssignRule,
+}
+
+/// Saves an auto-assign rule.
+pub async fn save_auto_assign_rule(rule: AutoAssignRule) -> Result<(), String> {
+    call("save_auto_assign_rule", &SaveAutoAssignRuleArgs { rule }).await
 }
 
 /// Closes the application cleanly.

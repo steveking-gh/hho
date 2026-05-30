@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 // IPC payload types are shared with the frontend via the hho-types crate.
-use hho_types::{Institution, LayoutConfig, OpenResult, Transaction};
+use hho_types::{AutoAssignRule, Institution, LayoutConfig, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -65,6 +65,9 @@ struct UserConfig {
     // Declared LAST: TOML requires array-of-tables to follow all scalar fields.
     #[serde(default)]
     institutions: Vec<Institution>,
+
+    #[serde(default)]
+    auto_assign_rules: Vec<AutoAssignRule>,
 }
 
 // ── Config file helpers ───────────────────────────────────────────────────────
@@ -316,6 +319,24 @@ fn get_recent_files(state: State<'_, ConfigState>) -> Vec<String> {
     cfg.recent_files.clone()
 }
 
+/// Returns the persisted list of auto-assign rules.
+#[tauri::command]
+fn get_auto_assign_rules(state: State<'_, ConfigState>) -> Vec<AutoAssignRule> {
+    let cfg = state.config.lock().unwrap();
+    cfg.auto_assign_rules.clone()
+}
+
+/// Appends a new auto-assign rule to the configuration and saves it to disk.
+#[tauri::command]
+fn save_auto_assign_rule(
+    rule:  AutoAssignRule,
+    state: State<'_, ConfigState>,
+) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.auto_assign_rules.push(rule);
+    save_config(&cfg);
+}
+
 /// Exits the application cleanly by closing all open windows.
 /// Posts window closure to main thread event loop.
 /// Prevents webview destruction while IPC handler is active.
@@ -353,6 +374,7 @@ pub fn run() {
             pick_csv, open_csv, save_mapping,
             get_layout, save_layout, save_window_size,
             get_recent_files, exit_app,
+            get_auto_assign_rules, save_auto_assign_rule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -405,6 +427,7 @@ mod tests {
             window_width:    Some(1200.0),
             window_height:   Some(800.0),
             institutions:    vec![],
+            auto_assign_rules: vec![],
         };
         let toml_str  = toml::to_string_pretty(&original).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
@@ -446,6 +469,7 @@ mod tests {
             debug_h:         None,
             window_width:    None,
             window_height:   None,
+            auto_assign_rules: vec![],
             institutions:    vec![hho_types::Institution {
                 name: "Chase".into(),
                 fingerprint: "date,description,amount".into(),
@@ -461,6 +485,34 @@ mod tests {
         let toml_str  = toml::to_string_pretty(&cfg).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.institutions, cfg.institutions);
+    }
+
+    #[test]
+    fn config_with_auto_assign_rules_roundtrips_through_toml() {
+        let cfg = UserConfig {
+            recent_files:    vec![],
+            last_opened_dir: None,
+            left_width:      None,
+            right_width:     None,
+            bottom_h:        None,
+            debug_h:         None,
+            window_width:    None,
+            window_height:   None,
+            institutions:    vec![],
+            auto_assign_rules: vec![
+                AutoAssignRule {
+                    regex: "STARBUCKS".to_string(),
+                    pane: "left".to_string(),
+                },
+                AutoAssignRule {
+                    regex: "NETFLIX".to_string(),
+                    pane: "right".to_string(),
+                },
+            ],
+        };
+        let toml_str  = toml::to_string_pretty(&cfg).unwrap();
+        let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(recovered.auto_assign_rules, cfg.auto_assign_rules);
     }
 
     #[test]

@@ -138,3 +138,10 @@ pub struct SaveWindowSizeArgs {
     pub width: f64,
     pub height: f64,
 }
+
+/// A regex rule mapping a vendor name to a destination pane.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AutoAssignRule {
+    pub regex: String,
+    pub pane: String, // "left" | "right" | "bottom"
+}

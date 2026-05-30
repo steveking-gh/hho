@@ -29,6 +29,7 @@ pub struct Item {
     pub amount_cents: i64,
     pub direction:    hho_types::Direction,
     pub date:         String,
+    pub auto_matched: bool,
 }
 
 /// Calculates the net total sum of pane items in cents.
@@ -155,6 +156,11 @@ pub fn get_previous_month_year(year: i32, month: i32) -> (i32, i32) {
     }
 }
 
+/// Escapes regular expression special characters in the input string.
+pub fn escape_regex(input: &str) -> String {
+    regex::escape(input)
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -171,6 +177,7 @@ mod tests {
                 amount_cents: 0,
                 direction: hho_types::Direction::Debit,
                 date: "".to_string(),
+                auto_matched: false,
             })
             .collect()
     }
@@ -355,6 +362,7 @@ mod tests {
                 amount_cents: 1000,
                 direction: hho_types::Direction::Credit,
                 date: "".to_string(),
+                auto_matched: false,
             },
             Item {
                 id: 2,
@@ -362,6 +370,7 @@ mod tests {
                 amount_cents: 250,
                 direction: hho_types::Direction::Debit,
                 date: "".to_string(),
+                auto_matched: false,
             },
         ];
         assert_eq!(calculate_total_cents(&items), 750);
@@ -376,6 +385,7 @@ mod tests {
                 amount_cents: 100,
                 direction: hho_types::Direction::Debit,
                 date: "2026-05-18".into(),
+                auto_matched: false,
             }
         ];
         let dest = vec![
@@ -385,10 +395,18 @@ mod tests {
                 amount_cents: 200,
                 direction: hho_types::Direction::Debit,
                 date: "2026-05-20".into(),
+                auto_matched: false,
             }
         ];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));
         assert_eq!(new_dst[0].date, "2026-05-18");
         assert_eq!(new_dst[1].date, "2026-05-20");
+    }
+
+    #[test]
+    fn test_escape_regex_escapes_special_characters() {
+        assert_eq!(escape_regex("Google.com"), "Google\\.com");
+        assert_eq!(escape_regex("Shop*"), "Shop\\*");
+        assert_eq!(escape_regex("Vendor (US)"), "Vendor \\(US\\)");
     }
 }
