@@ -42,10 +42,19 @@ pub fn AssignModal(item: Item) -> impl IntoView {
         if regex_val.is_empty() {
             (None, None)
         } else {
+            // First check if the original pattern is valid regex.
             match regex::Regex::new(&regex_val) {
-                Ok(re) => {
-                    let range = re.find(&vendor_for_memo).map(|m| (m.start(), m.end()));
-                    (range, None)
+                Ok(_) => {
+                    let anchored = format!("^(?:{})$", regex_val);
+                    match regex::Regex::new(&anchored) {
+                        Ok(re) => {
+                            let range = re.find(&vendor_for_memo).map(|m| (m.start(), m.end()));
+                            (range, None)
+                        }
+                        Err(e) => {
+                            (None, Some(e.to_string()))
+                        }
+                    }
                 }
                 Err(e) => {
                     (None, Some(e.to_string()))
@@ -93,8 +102,22 @@ pub fn AssignModal(item: Item) -> impl IntoView {
                 <h2>"Create Auto-Move Rule"</h2>
                 
                 <div class="modal-field">
-                    <label>"Original Vendor Name"</label>
-                    <div class="vendor-preview-box">
+                    <div class="label-row">
+                        <label>"Original Vendor Name"</label>
+                        {move || {
+                            let (range, _) = match_memo.get();
+                            if range.is_none() {
+                                view! { <span class="no-match-badge">"No Match"</span> }.into_any()
+                            } else {
+                                view! { <span style="display: none;"></span> }.into_any()
+                            }
+                        }}
+                    </div>
+                    <div
+                        class="vendor-preview-box"
+                        class:matched=move || match_memo.get().0.is_some()
+                        class:unmatched=move || match_memo.get().0.is_none()
+                    >
                         {move || {
                             let (range, _) = match_memo.get();
                             if let Some((start, end)) = range {

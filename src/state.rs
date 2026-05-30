@@ -257,7 +257,8 @@ impl AppState {
                     "bottom" => ActivePane::Bottom,
                     _ => return None,
                 };
-                regex::Regex::new(&r.regex).ok().map(|re| (re, pane))
+                let anchored = format!("^(?:{})$", r.regex);
+                regex::Regex::new(&anchored).ok().map(|re| (re, pane))
             })
             .collect();
 
