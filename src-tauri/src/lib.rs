@@ -337,6 +337,17 @@ fn save_auto_assign_rule(
     save_config(&cfg);
 }
 
+/// Replaces the persisted list of auto-assign rules and writes the updated configuration to disk.
+#[tauri::command]
+fn save_auto_assign_rules(
+    rules: Vec<AutoAssignRule>,
+    state: State<'_, ConfigState>,
+) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.auto_assign_rules = rules;
+    save_config(&cfg);
+}
+
 /// Exits the application cleanly by closing all open windows.
 /// Posts window closure to main thread event loop.
 /// Prevents webview destruction while IPC handler is active.
@@ -375,6 +386,7 @@ pub fn run() {
             get_layout, save_layout, save_window_size,
             get_recent_files, exit_app,
             get_auto_assign_rules, save_auto_assign_rule,
+            save_auto_assign_rules,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -513,6 +525,25 @@ mod tests {
         let toml_str  = toml::to_string_pretty(&cfg).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.auto_assign_rules, cfg.auto_assign_rules);
+    }
+
+    #[test]
+    fn save_auto_assign_rules_replaces_all_rules_in_config() {
+        let mut cfg = UserConfig::default();
+        cfg.auto_assign_rules = vec![
+            AutoAssignRule {
+                regex: "OLD".to_string(),
+                pane: "left".to_string(),
+            }
+        ];
+        let new_rules = vec![
+            AutoAssignRule {
+                regex: "NEW".to_string(),
+                pane: "right".to_string(),
+            }
+        ];
+        cfg.auto_assign_rules = new_rules.clone();
+        assert_eq!(cfg.auto_assign_rules, new_rules);
     }
 
     #[test]

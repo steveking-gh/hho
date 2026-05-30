@@ -103,6 +103,18 @@ pub async fn save_auto_assign_rule(rule: AutoAssignRule) -> Result<(), String> {
     call("save_auto_assign_rule", &SaveAutoAssignRuleArgs { rule }).await
 }
 
+/// Arguments for the `save_auto_assign_rules` command.
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAutoAssignRulesArgs {
+    pub rules: Vec<AutoAssignRule>,
+}
+
+/// Saves the complete list of auto-assign rules.
+pub async fn save_auto_assign_rules(rules: Vec<AutoAssignRule>) -> Result<(), String> {
+    call("save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
+}
+
 /// Closes the application cleanly.
 pub async fn exit_app() {
     let _ = invoke_raw("exit_app", JsValue::NULL).await;

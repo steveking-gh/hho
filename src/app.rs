@@ -9,14 +9,15 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::dto::{OpenResult, PendingMapping};
 use crate::ipc;
-use crate::logic::{ActivePane, nav_up, nav_down, pane_left, pane_right};
+use crate::logic::{ActivePane, Item, nav_up, nav_down, pane_left, pane_right};
 use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 use crate::components::{
     debug_log::DebugLog,
     header::Header,
     mapping_modal::MappingModal,
     month_modal::MonthModal,
-    assign_modal::AssignModal,
+    rule_editor_modal::RuleEditorModal,
+    rules_modal::RulesModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
 };
@@ -86,6 +87,24 @@ pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
             }));
         }
         OpenResult::Cancelled => state.log("[File] open cancelled".to_string()),
+    }
+}
+
+/// Extracts the vendor string from the formatted item label.
+fn get_vendor_for_item(state: AppState, item: &Item) -> String {
+    let txns = state.raw_transactions.get_untracked();
+    for t in txns {
+        if t.date == item.date && t.amount_cents == item.amount_cents && t.direction == item.direction {
+            if item.label.contains(&t.vendor) {
+                return t.vendor.clone();
+            }
+        }
+    }
+    let parts: Vec<&str> = item.label.split(" │ ").collect();
+    if parts.len() >= 2 {
+        parts[1].to_string()
+    } else {
+        "".to_string()
     }
 }
 
@@ -224,6 +243,7 @@ pub fn App() -> impl IntoView {
         if state.pending_mapping.get_untracked().is_some()
             || state.assign_modal_item.get_untracked().is_some()
             || state.is_month_modal_open.get_untracked()
+            || state.is_rules_modal_open.get_untracked()
         {
             return;
         }
@@ -385,8 +405,41 @@ pub fn App() -> impl IntoView {
             // Month selection modal: rendered only while open.
             {move || state.is_month_modal_open.get().then(|| view! { <MonthModal /> })}
 
-            // Auto-assign modal: rendered only while an item is being assigned.
-            {move || state.assign_modal_item.get().map(|item| view! { <AssignModal item=item /> })}
+            // Renders the auto-assign modal when assigning an item.
+            {move || state.assign_modal_item.get().map(|item| {
+                let vendor = get_vendor_for_item(state, &item);
+                let escaped_vendor = crate::logic::escape_regex(&vendor);
+                let on_save = move |rule: hho_types::AutoAssignRule| {
+                    spawn_local(async move {
+                        state.log(format!(
+                            "[AutoAssign] saving rule: regex=\"{}\" target={}",
+                            rule.regex, rule.pane
+                        ));
+                        if let Err(e) = crate::ipc::save_auto_assign_rule(rule.clone()).await {
+                            state.log(format!("[AutoAssign] failed to save rule: {e}"));
+                        } else {
+                            state.auto_assign_rules.update(|rules| rules.push(rule));
+                            state.apply_month_filter();
+                        }
+                        state.assign_modal_item.set(None);
+                    });
+                };
+                let on_cancel = move || {
+                    state.assign_modal_item.set(None);
+                };
+                view! {
+                    <RuleEditorModal
+                        preview_vendor=vendor
+                        initial_regex=escaped_vendor
+                        initial_pane="left".to_string()
+                        on_save=on_save
+                        on_cancel=on_cancel
+                    />
+                }
+            })}
+
+            // Rules manager modal: rendered only while open.
+            {move || state.is_rules_modal_open.get().then(|| view! { <RulesModal /> })}
         </div>
     }
 }

@@ -77,6 +77,14 @@ pub fn Header() -> impl IntoView {
         state.is_month_modal_open.set(true);
     };
 
+    // Opens the rules editor modal.
+    let on_edit_rules = move |_| {
+        if state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
+        state.is_rules_modal_open.set(true);
+    };
+
     // Register window click listener to auto-close dropdown when clicking outside.
     let close_handle = window_event_listener(leptos::ev::click, move |_| {
         is_dropdown_open.set(false);
@@ -144,6 +152,11 @@ pub fn Header() -> impl IntoView {
                 <button class="header-btn" on:click=on_toggle_month>
                     <span class="btn-icon">"📅"</span>
                     {move || format_month_year(state.selected_month.get(), state.selected_year.get())}
+                </button>
+
+                <button class="header-btn" on:click=on_edit_rules>
+                    <span class="btn-icon">"📝"</span>
+                    "Edit Rules"
                 </button>
             </div>
 

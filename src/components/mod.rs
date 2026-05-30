@@ -4,4 +4,5 @@ pub mod pane;
 pub mod resize_handle;
 pub mod header;
 pub mod month_modal;
-pub mod assign_modal;
+pub mod rule_editor_modal;
+pub mod rules_modal;
