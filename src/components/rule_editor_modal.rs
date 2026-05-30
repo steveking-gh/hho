@@ -68,7 +68,7 @@ where
     let on_save_click = move |_| {
         let regex_val = regex_input.get_untracked();
         let pane_val = target_pane.get_untracked();
-        
+
         if regex_val.is_empty() || regex::Regex::new(&regex_val).is_err() {
             return;
         }
@@ -83,7 +83,7 @@ where
         <div class="modal-overlay nested-modal-overlay" on:click=on_cancel_overlay>
             <div class="modal-container assign-modal" on:click=|ev| ev.stop_propagation()>
                 <h2>"Edit Auto-Move Rule"</h2>
-                
+
                 <div class="modal-field">
                     <div class="label-row">
                         <label>"Original Vendor Name"</label>
@@ -154,7 +154,7 @@ where
                             class=move || if target_pane.get() == "right" { "pane-select-btn active" } else { "pane-select-btn" }
                             on:click=move |_| set_target_pane.set("right".to_string())
                         >
-                            "Mine"
+                            "Personal"
                         </button>
                         <button
                             type="button"

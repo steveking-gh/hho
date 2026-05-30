@@ -322,7 +322,7 @@ pub fn App() -> impl IntoView {
             (true, "ArrowRight") => match pane {
                 ActivePane::Left   => state.transfer(ActivePane::Left,   ActivePane::Middle),
                 ActivePane::Middle => state.transfer(ActivePane::Middle, ActivePane::Right),
-                ActivePane::Right  => "no-op: no pane right of Mine".into(),
+                ActivePane::Right  => "no-op: no pane right of Personal".into(),
                 ActivePane::Bottom => "no-op: Ignored has no right neighbor".into(),
             },
             (true, "ArrowDown") => match pane {
@@ -393,7 +393,7 @@ pub fn App() -> impl IntoView {
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::LeftHandle />
                     <Pane title="Unassigned" pane_id=ActivePane::Middle />
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::RightHandle />
-                    <Pane title="Mine"          pane_id=ActivePane::Right />
+                    <Pane title="Personal"          pane_id=ActivePane::Right />
                 </div>
                 <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::TopHandle />
                 <Pane title="Ignored" pane_id=ActivePane::Bottom is_bottom=true />

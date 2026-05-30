@@ -24,11 +24,11 @@ fn find_preview_vendor(state: AppState, regex_str: &str) -> String {
 #[component]
 pub fn RulesModal() -> impl IntoView {
     let state = use_context::<AppState>().expect("AppState missing from context");
-    
+
     // Copy the existing persistent rules to a local draft list on initialization.
     let initial_rules = state.auto_assign_rules.get_untracked();
     let rules_draft = RwSignal::new(initial_rules.clone());
-    
+
     let initial_sel = if initial_rules.is_empty() { None } else { Some(0) };
     let rules_sel = RwSignal::new(initial_sel);
     let editing_rule_index = RwSignal::new(None::<usize>);
@@ -101,14 +101,14 @@ pub fn RulesModal() -> impl IntoView {
         <div class="modal-overlay" on:click=on_cancel>
             <div class="modal-container rules-modal-container" on:click=|ev| ev.stop_propagation()>
                 <h2>"Manage Auto-Move Rules"</h2>
-                
+
                 <div class="rules-list-container">
                     <div class="rules-list-header">
                         <div class="col-pattern">"Pattern"</div>
                         <div class="col-pane">"Destination"</div>
                         <div class="col-actions"></div>
                     </div>
-                    
+
                     <div class="rules-list-rows">
                         {move || {
                             let draft = rules_draft.get();
@@ -118,7 +118,7 @@ pub fn RulesModal() -> impl IntoView {
                                 draft.into_iter().enumerate().map(|(i, rule)| {
                                     let is_selected = move || rules_sel.get() == Some(i);
                                     let rule_clone = rule.clone();
-                                    
+
                                     let on_delete_click = move |ev: web_sys::MouseEvent| {
                                         ev.stop_propagation();
                                         rules_draft.update(|rules| {
@@ -152,7 +152,7 @@ pub fn RulesModal() -> impl IntoView {
 
                                     let display_pane = match rule_clone.pane.as_str() {
                                         "left" => "Joint",
-                                        "right" => "Mine",
+                                        "right" => "Personal",
                                         "bottom" => "Ignore",
                                         other => other,
                                     }.to_string();
@@ -207,10 +207,10 @@ pub fn RulesModal() -> impl IntoView {
         {move || editing_rule_index.get().map(|idx| {
             let draft = rules_draft.get_untracked();
             if idx >= draft.len() { return view! {}.into_any(); }
-            
+
             let rule_to_edit = draft[idx].clone();
             let preview_vendor = find_preview_vendor(state, &rule_to_edit.regex);
-            
+
             view! {
                 <RuleEditorModal
                     preview_vendor=preview_vendor

@@ -23,7 +23,7 @@ fn format_txn(t: &Transaction) -> String {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DragTarget {
     LeftHandle,    // vertical divider: Joint | Unassigned
-    RightHandle,   // vertical divider: Unassigned | Mine
+    RightHandle,   // vertical divider: Unassigned | Personal
     TopHandle,     // horizontal divider: top-section | Ignored pane
     BottomHandle,  // horizontal divider: Ignored pane | Debug panel
 }
@@ -66,7 +66,7 @@ pub struct AppState {
 
     // ── Layout sizes (px; updated by resize handles and restored from config) ─
     pub left_width:   RwSignal<f32>,   // Joint pane width
-    pub right_width:  RwSignal<f32>,   // Mine pane width
+    pub right_width:  RwSignal<f32>,   // Personal pane width
     pub bottom_h:     RwSignal<f32>,   // Ignored pane height
     pub debug_h:      RwSignal<f32>,   // Debug panel height
 

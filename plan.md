@@ -179,7 +179,7 @@ styles.css         ← complete rewrite for new layout
 | C  | Post-move focus       | **Stay in source pane**                           |
 | D  | Bottom pane layout    | **Single flat list**                              |
 | E  | Active pane indicator | **Slightly lighter background** on active pane    |
-| F  | Pane headers          | **Yes** — Joint / Unassigned / Mine / Ignored  |
+| F  | Pane headers          | **Yes** — Joint / Unassigned / Personal / Ignored  |
 
 ---
 

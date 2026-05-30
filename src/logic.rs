@@ -15,7 +15,7 @@ impl std::fmt::Display for ActivePane {
         match self {
             Self::Left   => write!(f, "Joint"),
             Self::Middle => write!(f, "Unassigned"),
-            Self::Right  => write!(f, "Mine"),
+            Self::Right  => write!(f, "Personal"),
             Self::Bottom => write!(f, "Ignored"),
         }
     }

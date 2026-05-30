@@ -46,7 +46,7 @@ struct UserConfig {
     left_width: Option<f32>,   // Joint pane width (px)
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    right_width: Option<f32>,  // Mine pane width (px)
+    right_width: Option<f32>,  // Personal pane width (px)
 
     #[serde(skip_serializing_if = "Option::is_none")]
     bottom_h: Option<f32>,     // Ignored pane height (px)
