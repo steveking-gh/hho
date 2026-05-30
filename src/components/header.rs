@@ -3,7 +3,8 @@
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::state::AppState;
-use crate::app::handle_open_result;
+use crate::app::{handle_open_result, get_vendor_for_item};
+use hho_types::Transaction;
 
 /// Extracts filename from path string.
 fn get_filename(path: &str) -> &str {
@@ -30,6 +31,26 @@ fn format_month_year(month: i32, year: i32) -> String {
     };
     format!("{} {}", month_name, year)
 }
+
+/// Translates month indices into full English month name strings.
+fn get_month_name(month: i32) -> &'static str {
+    match month {
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
+        _ => "Unknown",
+    }
+}
+
 
 #[component]
 pub fn Header() -> impl IntoView {
@@ -91,6 +112,60 @@ pub fn Header() -> impl IntoView {
             return;
         }
         state.is_create_transaction_modal_open.set(true);
+    };
+
+    // Triggers file export of the Joint pane transactions to CSV.
+    let on_save_joint = move |_| {
+        if state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
+        let items = state.left_items.get_untracked();
+        let txns: Vec<Transaction> = items
+            .iter()
+            .map(|item| Transaction {
+                date: item.date.clone(),
+                vendor: get_vendor_for_item(state, item),
+                amount_cents: item.amount_cents,
+                direction: item.direction,
+            })
+            .collect();
+        let month = state.selected_month.get_untracked();
+        let year = state.selected_year.get_untracked();
+        let month_name = get_month_name(month).to_string();
+
+        spawn_local(async move {
+            state.log(format!("[Header] Saving Joint transactions to CSV (count={})", txns.len()));
+            if let Err(e) = crate::ipc::save_pane_transactions("Joint".to_string(), month_name, year, txns).await {
+                state.log(format!("[Header] Failed to save Joint transactions: {e}"));
+            }
+        });
+    };
+
+    // Triggers file export of the Personal pane transactions to CSV.
+    let on_save_personal = move |_| {
+        if state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
+        let items = state.right_items.get_untracked();
+        let txns: Vec<Transaction> = items
+            .iter()
+            .map(|item| Transaction {
+                date: item.date.clone(),
+                vendor: get_vendor_for_item(state, item),
+                amount_cents: item.amount_cents,
+                direction: item.direction,
+            })
+            .collect();
+        let month = state.selected_month.get_untracked();
+        let year = state.selected_year.get_untracked();
+        let month_name = get_month_name(month).to_string();
+
+        spawn_local(async move {
+            state.log(format!("[Header] Saving Personal transactions to CSV (count={})", txns.len()));
+            if let Err(e) = crate::ipc::save_pane_transactions("Personal".to_string(), month_name, year, txns).await {
+                state.log(format!("[Header] Failed to save Personal transactions: {e}"));
+            }
+        });
     };
 
     // Register window click listener to auto-close dropdown when clicking outside.
@@ -170,6 +245,16 @@ pub fn Header() -> impl IntoView {
                 <button class="header-btn" on:click=on_create_transaction>
                     <span class="btn-icon header-icon-orange">"+"</span>
                     "New Transaction"
+                </button>
+
+                <button class="header-btn" on:click=on_save_joint>
+                    <span class="btn-icon">"💾"</span>
+                    "Save Joint"
+                </button>
+
+                <button class="header-btn" on:click=on_save_personal>
+                    <span class="btn-icon">"💾"</span>
+                    "Save Personal"
                 </button>
             </div>
 

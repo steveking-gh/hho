@@ -115,6 +115,27 @@ pub async fn save_auto_assign_rules(rules: Vec<AutoAssignRule>) -> Result<(), St
     call("save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
 }
 
+/// Arguments for the `save_pane_transactions` command.
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePaneTransactionsArgs {
+    pub pane_title: String,
+    pub month_name: String,
+    pub year: i32,
+    pub transactions: Vec<Transaction>,
+}
+
+/// Saves transactions in a selected pane to a CSV file.
+pub async fn save_pane_transactions(
+    pane_title: String,
+    month_name: String,
+    year: i32,
+    transactions: Vec<Transaction>,
+) -> Result<(), String> {
+    let args = SavePaneTransactionsArgs { pane_title, month_name, year, transactions };
+    call("save_pane_transactions", &args).await
+}
+
 /// Closes the application cleanly.
 pub async fn exit_app() {
     let _ = invoke_raw("exit_app", JsValue::NULL).await;

@@ -9,6 +9,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 
 // IPC payload types are shared with the frontend via the hho-types crate.
 use hho_types::{AutoAssignRule, Institution, LayoutConfig, OpenResult, Transaction};
@@ -40,6 +41,10 @@ struct UserConfig {
     /// Directory last used in a file-open dialog; seeds the next dialog.
     #[serde(skip_serializing_if = "Option::is_none")]
     last_opened_dir: Option<String>,
+
+    /// Directory last used in a file-save dialog; seeds the next dialog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_saved_dir: Option<String>,
 
     // ── Pane layout ───────────────────────────────────────────────────────────
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -348,6 +353,93 @@ fn save_auto_assign_rules(
     save_config(&cfg);
 }
 
+/// Saves transactions of a selected pane to a CSV file.
+/// Presents a native file save dialog pre-populated with a default name.
+/// Appends a blank row and total summary row to the written CSV file.
+#[tauri::command]
+async fn save_pane_transactions(
+    window: tauri::Window,
+    state: State<'_, ConfigState>,
+    pane_title: String,
+    month_name: String,
+    year: i32,
+    transactions: Vec<Transaction>,
+) -> Result<(), String> {
+    let default_filename = format!("{}_{}_{}.csv", pane_title, month_name, year);
+
+    let start_dir: Option<PathBuf> = {
+        let cfg = state.config.lock().unwrap();
+        cfg.last_saved_dir
+            .as_deref()
+            .map(PathBuf::from)
+            .filter(|p| p.exists())
+            .or_else(dirs::home_dir)
+    };
+
+    let mut builder = window.dialog().file()
+        .set_parent(&window)
+        .add_filter("CSV files", &["csv", "CSV"])
+        .set_file_name(&default_filename);
+    if let Some(dir) = start_dir {
+        builder = builder.set_directory(dir);
+    }
+
+    let Some(fp) = builder.blocking_save_file() else {
+        return Ok(());
+    };
+    let path = fp.as_path()
+        .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
+        .to_path_buf();
+
+    if let Some(parent) = path.parent() {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.last_saved_dir = Some(parent.to_string_lossy().to_string());
+        save_config(&cfg);
+    }
+
+    let mut wtr = csv::Writer::from_path(&path).map_err(|e| format!("failed to create file: {e}"))?;
+
+    wtr.write_record(&["Date", "Vendor", "Amount"]).map_err(|e| format!("failed to write header: {e}"))?;
+
+    let mut total_cents = 0i64;
+    for t in &transactions {
+        let amount_cents = t.amount_cents;
+        let dollars = amount_cents / 100;
+        let cents_rem = (amount_cents % 100).abs();
+        let sign = match t.direction {
+            hho_types::Direction::Credit => "",
+            hho_types::Direction::Debit => "-",
+        };
+        let amount_str = format!("{}{}.{:02}", sign, dollars, cents_rem);
+
+        wtr.write_record(&[&t.date, &t.vendor, &amount_str]).map_err(|e| format!("failed to write record: {e}"))?;
+
+        match t.direction {
+            hho_types::Direction::Credit => total_cents += amount_cents,
+            hho_types::Direction::Debit => total_cents -= amount_cents,
+        }
+    }
+
+    wtr.flush().map_err(|e| format!("failed to flush: {e}"))?;
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("failed to open file for appending: {e}"))?;
+
+    use std::io::Write;
+
+    let total_dollars = total_cents.abs() / 100;
+    let total_cents_rem = (total_cents % 100).abs();
+    let total_sign = if total_cents < 0 { "-" } else { "" };
+    let total_str = format!("{}{}.{:02}", total_sign, total_dollars, total_cents_rem);
+
+    writeln!(file).map_err(|e| format!("failed to write blank line: {e}"))?;
+    writeln!(file, "TOTAL,{}", total_str).map_err(|e| format!("failed to write total: {e}"))?;
+
+    Ok(())
+}
+
 /// Exits the application cleanly by closing all open windows.
 /// Posts window closure to main thread event loop.
 /// Prevents webview destruction while IPC handler is active.
@@ -386,7 +478,7 @@ pub fn run() {
             get_layout, save_layout, save_window_size,
             get_recent_files, exit_app,
             get_auto_assign_rules, save_auto_assign_rule,
-            save_auto_assign_rules,
+            save_auto_assign_rules, save_pane_transactions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -432,6 +524,7 @@ mod tests {
         let original = UserConfig {
             recent_files:    vec!["a.csv".into(), "b.csv".into()],
             last_opened_dir: Some("/home/user/docs".into()),
+            last_saved_dir:  Some("/home/user/saved".into()),
             left_width:      Some(250.0),
             right_width:     Some(180.0),
             bottom_h:        Some(220.0),
@@ -475,6 +568,7 @@ mod tests {
         let cfg = UserConfig {
             recent_files:    vec![],
             last_opened_dir: None,
+            last_saved_dir:  None,
             left_width:      None,
             right_width:     None,
             bottom_h:        None,
@@ -504,6 +598,7 @@ mod tests {
         let cfg = UserConfig {
             recent_files:    vec![],
             last_opened_dir: None,
+            last_saved_dir:  None,
             left_width:      None,
             right_width:     None,
             bottom_h:        None,

@@ -92,7 +92,7 @@ pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
 }
 
 /// Extracts the vendor string from the formatted item label.
-fn get_vendor_for_item(state: AppState, item: &Item) -> String {
+pub(crate) fn get_vendor_for_item(state: AppState, item: &Item) -> String {
     let txns = state.raw_transactions.get_untracked();
     for t in txns {
         if t.date == item.date && t.amount_cents == item.amount_cents && t.direction == item.direction {
