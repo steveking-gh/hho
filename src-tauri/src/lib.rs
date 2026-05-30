@@ -1,6 +1,6 @@
 // Tauri application entry point.
 // Responsibilities: native menu, user-config persistence (TOML in home dir),
-// CSV reading, and IPC commands.
+// CSV reading, layout persistence, window-size persistence, and IPC commands.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -11,9 +11,19 @@ use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_RECENTS:   usize = 5;
-const CONFIG_FILE:   &str  = "hho_user_config.toml";
-const MENU_EVENT:    &str  = "hho-menu";
+const MAX_RECENTS:    usize = 5;
+const CONFIG_FILE:    &str  = "hho_user_config.toml";
+const MENU_EVENT:     &str  = "hho-menu";
+
+// Default layout dimensions (px, logical).
+const DEFAULT_LEFT_W:  f32 = 200.0;
+const DEFAULT_RIGHT_W: f32 = 200.0;
+const DEFAULT_BOT_H:   f32 = 200.0;
+const DEFAULT_DBG_H:   f32 = 150.0;
+
+// Default window dimensions (logical px).
+const DEFAULT_WIN_W: f64 = 1024.0;
+const DEFAULT_WIN_H: f64 =  700.0;
 
 // ── User configuration ────────────────────────────────────────────────────────
 
@@ -27,68 +37,86 @@ struct UserConfig {
     /// Directory last used in a file-open dialog; seeds the next dialog.
     #[serde(skip_serializing_if = "Option::is_none")]
     last_opened_dir: Option<String>,
+
+    // ── Pane layout ───────────────────────────────────────────────────────────
+    #[serde(skip_serializing_if = "Option::is_none")]
+    left_width: Option<f32>,   // Joint pane width (px)
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    right_width: Option<f32>,  // Mine pane width (px)
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bottom_h: Option<f32>,     // Ignored pane height (px)
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_h: Option<f32>,      // Debug panel height (px)
+
+    // ── Window geometry ───────────────────────────────────────────────────────
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window_width: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window_height: Option<f64>,
 }
 
 // ── Config file helpers ───────────────────────────────────────────────────────
 
-/// Resolve ~/hho_user_config.toml on Windows and Linux.
 fn config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(CONFIG_FILE)
 }
 
-/// Load config from disk; auto-create a default file if absent.
-/// Drops entries for files that no longer exist on the filesystem.
+/// Load config; auto-create a default file if absent.
+/// Drops recent-file entries whose paths no longer exist.
 fn load_config() -> UserConfig {
     let path = config_path();
-
     if !path.exists() {
         let default = UserConfig::default();
-        save_config(&default); // Create the file immediately so users can inspect it.
+        save_config(&default);
         return default;
     }
-
     let raw = match std::fs::read_to_string(&path) {
         Ok(s)  => s,
         Err(_) => return UserConfig::default(),
     };
-
     let mut cfg: UserConfig = toml::from_str(&raw).unwrap_or_default();
-
-    // Filter out paths that no longer exist so the menu stays clean.
     cfg.recent_files.retain(|p| Path::new(p).exists());
     cfg.recent_files.truncate(MAX_RECENTS);
-
     cfg
 }
 
-/// Serialize `config` to TOML and overwrite ~/hho_user_config.toml.
 fn save_config(config: &UserConfig) {
     let path = config_path();
     match toml::to_string_pretty(config) {
-        Ok(toml_str) => { let _ = std::fs::write(&path, toml_str); }
-        Err(e)       => eprintln!("hho: failed to serialize config: {e}"),
+        Ok(s)  => { let _ = std::fs::write(&path, s); }
+        Err(e) => eprintln!("hho: config serialize error: {e}"),
     }
 }
 
 // ── Managed state ─────────────────────────────────────────────────────────────
 
-/// Runtime wrapper around UserConfig shared across Tauri commands.
 struct ConfigState {
     config: Mutex<UserConfig>,
 }
 
 // ── IPC types ─────────────────────────────────────────────────────────────────
 
-/// Data returned to the frontend after a successful CSV open.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CsvFile {
     pub path: String,
     pub rows: Vec<String>,
 }
 
-/// Payload emitted on MENU_EVENT to drive the frontend.
+/// Layout dimensions sent to the frontend on startup.
+#[derive(Serialize)]
+struct LayoutConfig {
+    left_width:  f32,
+    right_width: f32,
+    bottom_h:    f32,
+    debug_h:     f32,
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(tag = "action", rename_all = "kebab-case")]
 enum MenuAction {
@@ -98,8 +126,6 @@ enum MenuAction {
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
-/// Parse every non-empty row in `path` into a display label.
-/// Joins non-blank columns with " │ "; skips fully-blank rows.
 fn read_csv_rows(path: &Path) -> Result<Vec<String>, String> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -111,22 +137,20 @@ fn read_csv_rows(path: &Path) -> Result<Vec<String>, String> {
         .records()
         .filter_map(|r| r.ok())
         .map(|record| {
-            record
-                .iter()
+            record.iter()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
                 .join(" │ ")
         })
-        .filter(|label| !label.is_empty())
+        .filter(|l| !l.is_empty())
         .collect();
-
     Ok(rows)
 }
 
 // ── Recent-file helpers ───────────────────────────────────────────────────────
 
-/// Prepend `new_path` to `files`, dedup, cap to MAX_RECENTS.
+/// Prepend `new_path`, dedup, cap to MAX_RECENTS.
 pub fn push_recent(files: &mut Vec<String>, new_path: String) {
     files.retain(|p| p != &new_path);
     files.insert(0, new_path);
@@ -135,20 +159,16 @@ pub fn push_recent(files: &mut Vec<String>, new_path: String) {
 
 // ── Menu builder ──────────────────────────────────────────────────────────────
 
-/// Construct the full File menu with Open, Open Recent, and Quit.
-/// Rebuilds on every call so the recent-files submenu is always current.
 fn build_menu(app: &AppHandle, recents: &[String]) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", "Open...", true, Some("CmdOrCtrl+O"))?;
     let sep  = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit",    true, Some("CmdOrCtrl+Q"))?;
-
-    let recent_sub = build_recent_submenu(app, recents)?;
-
-    let file_menu = Submenu::with_items(
+    let sub  = build_recent_submenu(app, recents)?;
+    let file = Submenu::with_items(
         app, "File", true,
-        &[&open, &sep, &recent_sub, &PredefinedMenuItem::separator(app)?, &quit],
+        &[&open, &sep, &sub, &PredefinedMenuItem::separator(app)?, &quit],
     )?;
-    Menu::with_items(app, &[&file_menu])
+    Menu::with_items(app, &[&file])
 }
 
 fn build_recent_submenu(
@@ -156,33 +176,22 @@ fn build_recent_submenu(
     recents: &[String],
 ) -> tauri::Result<Submenu<tauri::Wry>> {
     if recents.is_empty() {
-        let none = MenuItem::with_id(
-            app, "no-recents", "No Recent Files", false, None::<&str>,
-        )?;
+        let none = MenuItem::with_id(app, "no-recents", "No Recent Files", false, None::<&str>)?;
         return Submenu::with_items(app, "Open Recent", true, &[&none]);
     }
-
-    let items: Vec<MenuItem<tauri::Wry>> = recents
-        .iter()
-        .enumerate()
-        .filter_map(|(i, path_str)| {
-            let name = Path::new(path_str)
-                .file_name()?
-                .to_string_lossy()
-                .into_owned();
+    let items: Vec<MenuItem<tauri::Wry>> = recents.iter().enumerate()
+        .filter_map(|(i, p)| {
+            let name = Path::new(p).file_name()?.to_string_lossy().into_owned();
             MenuItem::with_id(app, format!("recent-{i}"), name, true, None::<&str>).ok()
         })
         .collect();
-
     let refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
         items.iter().map(|m| m as &dyn IsMenuItem<tauri::Wry>).collect();
-
     Submenu::with_items(app, "Open Recent", true, refs.as_slice())
 }
 
 // ── Shared open logic ─────────────────────────────────────────────────────────
 
-/// Read CSV, update config (recents + last_opened_dir), persist, rebuild menu.
 fn finalize_open(
     app:   &AppHandle,
     state: &ConfigState,
@@ -190,9 +199,7 @@ fn finalize_open(
 ) -> Result<CsvFile, String> {
     let rows     = read_csv_rows(&path)?;
     let path_str = path.to_string_lossy().to_string();
-    let dir_str  = path
-        .parent()
-        .map(|p| p.to_string_lossy().to_string());
+    let dir_str  = path.parent().map(|p| p.to_string_lossy().to_string());
 
     let mut cfg = state.config.lock().unwrap();
     push_recent(&mut cfg.recent_files, path_str.clone());
@@ -201,14 +208,11 @@ fn finalize_open(
 
     let menu = build_menu(app, &cfg.recent_files).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
-
     Ok(CsvFile { path: path_str, rows })
 }
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
-/// Open a native file-picker, defaulting to the last-used directory.
-/// Returns None when the user cancels.
 #[tauri::command]
 async fn pick_csv(
     app:   AppHandle,
@@ -216,7 +220,6 @@ async fn pick_csv(
 ) -> Result<Option<CsvFile>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    // Seed the dialog with the last-used directory (or home dir as fallback).
     let start_dir: Option<PathBuf> = {
         let cfg = state.config.lock().unwrap();
         cfg.last_opened_dir
@@ -226,42 +229,69 @@ async fn pick_csv(
             .or_else(dirs::home_dir)
     };
 
-    let mut builder = app
-        .dialog()
-        .file()
-        .add_filter("CSV files", &["csv", "CSV"]);
-
+    let mut builder = app.dialog().file().add_filter("CSV files", &["csv", "CSV"]);
     if let Some(dir) = start_dir {
         builder = builder.set_directory(dir);
     }
 
-    let picked = builder.blocking_pick_file();
-
-    let Some(file_path) = picked else {
-        return Ok(None);
-    };
-
-    // FilePath is an enum (Path | Url); desktop dialogs always produce Path.
-    let path = file_path
-        .as_path()
+    let Some(fp) = builder.blocking_pick_file() else { return Ok(None) };
+    let path = fp.as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
-
     finalize_open(&app, &state, path).map(Some)
 }
 
-/// Read a CSV at a known path (Open Recent flow), update config.
 #[tauri::command]
 async fn open_csv(
     path:  String,
     app:   AppHandle,
     state: State<'_, ConfigState>,
 ) -> Result<Option<CsvFile>, String> {
-    let path_buf = PathBuf::from(&path);
-    if !path_buf.exists() {
-        return Err(format!("file not found: {path}"));
+    let pb = PathBuf::from(&path);
+    if !pb.exists() { return Err(format!("file not found: {path}")); }
+    finalize_open(&app, &state, pb).map(Some)
+}
+
+/// Return persisted layout dimensions; frontend applies them to size signals.
+#[tauri::command]
+fn get_layout(state: State<'_, ConfigState>) -> LayoutConfig {
+    let cfg = state.config.lock().unwrap();
+    LayoutConfig {
+        left_width:  cfg.left_width.unwrap_or(DEFAULT_LEFT_W),
+        right_width: cfg.right_width.unwrap_or(DEFAULT_RIGHT_W),
+        bottom_h:    cfg.bottom_h.unwrap_or(DEFAULT_BOT_H),
+        debug_h:     cfg.debug_h.unwrap_or(DEFAULT_DBG_H),
     }
-    finalize_open(&app, &state, path_buf).map(Some)
+}
+
+/// Persist pane layout after a drag gesture ends.
+#[tauri::command]
+fn save_layout(
+    left_width:  f32,
+    right_width: f32,
+    bottom_h:    f32,
+    debug_h:     f32,
+    state:       State<'_, ConfigState>,
+) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.left_width  = Some(left_width);
+    cfg.right_width = Some(right_width);
+    cfg.bottom_h    = Some(bottom_h);
+    cfg.debug_h     = Some(debug_h);
+    save_config(&cfg);
+}
+
+/// Persist window dimensions after the OS window is resized.
+#[tauri::command]
+fn save_window_size(
+    width:  f64,
+    height: f64,
+    state:  State<'_, ConfigState>,
+) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.window_width  = Some(width);
+    cfg.window_height = Some(height);
+    save_config(&cfg);
 }
 
 // ── App entry point ───────────────────────────────────────────────────────────
@@ -274,20 +304,22 @@ pub fn run() {
         .setup(|app| {
             let cfg = load_config();
 
+            // Restore window geometry before the window becomes visible.
+            let win_w = cfg.window_width.unwrap_or(DEFAULT_WIN_W);
+            let win_h = cfg.window_height.unwrap_or(DEFAULT_WIN_H);
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_size(tauri::LogicalSize::new(win_w, win_h));
+            }
+
             let menu = build_menu(app.handle(), &cfg.recent_files)?;
             app.set_menu(menu)?;
-
-            app.manage(ConfigState {
-                config: Mutex::new(cfg),
-            });
+            app.manage(ConfigState { config: Mutex::new(cfg) });
 
             let handle = app.handle().clone();
             app.on_menu_event(move |_app, event| {
                 let id = event.id().as_ref();
                 match id {
-                    "open" => {
-                        let _ = handle.emit(MENU_EVENT, MenuAction::Open);
-                    }
+                    "open" => { let _ = handle.emit(MENU_EVENT, MenuAction::Open); }
                     "quit" => handle.exit(0),
                     id if id.starts_with("recent-") => {
                         if let Ok(idx) = id["recent-".len()..].parse::<usize>() {
@@ -304,10 +336,12 @@ pub fn run() {
                     _ => {}
                 }
             });
-
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![pick_csv, open_csv])
+        .invoke_handler(tauri::generate_handler![
+            pick_csv, open_csv,
+            get_layout, save_layout, save_window_size,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
 }
@@ -318,69 +352,63 @@ pub fn run() {
 mod tests {
     use super::*;
 
-    // push_recent ─────────────────────────────────────────────────────────────
-
     #[test]
     fn push_recent_prepends_new_entry() {
-        let mut files = vec!["b.csv".to_string(), "c.csv".to_string()];
-        push_recent(&mut files, "a.csv".to_string());
-        assert_eq!(files[0], "a.csv");
+        let mut v = vec!["b.csv".to_string(), "c.csv".to_string()];
+        push_recent(&mut v, "a.csv".to_string());
+        assert_eq!(v[0], "a.csv");
     }
 
     #[test]
     fn push_recent_deduplicates_existing_entry() {
-        let mut files = vec!["a.csv", "b.csv", "c.csv"]
-            .into_iter().map(String::from).collect();
-        push_recent(&mut files, "b.csv".to_string());
-        assert_eq!(files, vec!["b.csv", "a.csv", "c.csv"]);
+        let mut v: Vec<String> = ["a","b","c"].iter().map(|s| s.to_string()).collect();
+        push_recent(&mut v, "b.csv".to_string());
+        assert_eq!(v, vec!["b.csv", "a", "b", "c"]);
     }
 
     #[test]
     fn push_recent_caps_at_max_recents() {
-        let mut files: Vec<String> = (0..MAX_RECENTS)
-            .map(|i| format!("{i}.csv"))
-            .collect();
-        push_recent(&mut files, "new.csv".to_string());
-        assert_eq!(files.len(), MAX_RECENTS);
-        assert_eq!(files[0], "new.csv");
+        let mut v: Vec<String> = (0..MAX_RECENTS).map(|i| format!("{i}.csv")).collect();
+        push_recent(&mut v, "new.csv".to_string());
+        assert_eq!(v.len(), MAX_RECENTS);
+        assert_eq!(v[0], "new.csv");
     }
 
     #[test]
-    fn push_recent_on_empty_list_adds_single_entry() {
-        let mut files = vec![];
-        push_recent(&mut files, "only.csv".to_string());
-        assert_eq!(files, vec!["only.csv"]);
+    fn push_recent_on_empty_list() {
+        let mut v = vec![];
+        push_recent(&mut v, "only.csv".to_string());
+        assert_eq!(v, vec!["only.csv"]);
     }
-
-    // UserConfig serialization ─────────────────────────────────────────────────
 
     #[test]
     fn config_roundtrips_through_toml() {
         let original = UserConfig {
             recent_files:    vec!["a.csv".into(), "b.csv".into()],
             last_opened_dir: Some("/home/user/docs".into()),
+            left_width:      Some(250.0),
+            right_width:     Some(180.0),
+            bottom_h:        Some(220.0),
+            debug_h:         Some(130.0),
+            window_width:    Some(1200.0),
+            window_height:   Some(800.0),
         };
         let toml_str  = toml::to_string_pretty(&original).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.recent_files,    original.recent_files);
         assert_eq!(recovered.last_opened_dir, original.last_opened_dir);
+        assert_eq!(recovered.left_width,      original.left_width);
+        assert_eq!(recovered.window_width,    original.window_width);
     }
 
     #[test]
-    fn config_with_no_dir_omits_last_opened_dir_key() {
-        let cfg = UserConfig { recent_files: vec![], last_opened_dir: None };
+    fn config_none_fields_omitted_from_toml() {
+        let cfg = UserConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         assert!(!toml_str.contains("last_opened_dir"));
+        assert!(!toml_str.contains("left_width"));
+        assert!(!toml_str.contains("window_width"));
     }
-
-    #[test]
-    fn default_config_is_empty() {
-        let cfg = UserConfig::default();
-        assert!(cfg.recent_files.is_empty());
-        assert!(cfg.last_opened_dir.is_none());
-    }
-
-    // CSV parsing ─────────────────────────────────────────────────────────────
 
     #[test]
     fn csv_rows_join_columns_with_separator() {

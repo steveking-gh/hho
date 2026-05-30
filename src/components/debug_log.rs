@@ -1,18 +1,20 @@
-// Scrollable debug log panel — displays keyboard and click events newest-first.
+// Scrollable debug log panel.
+// Height driven by the debug_h signal so the resize handle above it works.
 
 use leptos::prelude::*;
 use crate::state::AppState;
 
-/// Fixed-height panel at the bottom of the window showing all logged events.
 #[component]
 pub fn DebugLog() -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
     let log = state.debug_log;
 
+    // Inline height from signal; all other styles stay in CSS.
+    let debug_style = move || format!("height: {}px;", state.debug_h.get());
+
     view! {
-        <div class="debug-panel">
+        <div class="debug-panel" style=debug_style>
             <div class="debug-header">"Debug"</div>
-            // Separate scrollable container keeps the header pinned while entries scroll.
             <div class="debug-rows">
                 {move || {
                     log.get()

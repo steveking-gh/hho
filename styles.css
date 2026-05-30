@@ -1,12 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Scale root
    Ctrl+/-/0 in app.rs adjusts html { font-size } between 7px and 20px.
-   All other sizes are in rem so they scale proportionally.
    Default 10px → 1rem makes the conversion trivial: Xpx = X/10 rem.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 html {
-  font-size: 10px; /* = 1rem baseline; overridden at runtime by Ctrl+/- */
+  font-size: 10px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -22,7 +21,7 @@ html {
 body {
   overflow: hidden;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 1.3rem;  /* 13px */
+  font-size: 1.3rem;
   line-height: 1.4;
   background-color: #1e1e1e;
 }
@@ -45,7 +44,7 @@ body {
   min-height: 0;
 }
 
-/* ── Top section: three equal-width panes side by side ────────────────────── */
+/* ── Top section: panes side-by-side ──────────────────────────────────────── */
 
 .top-section {
   display: flex;
@@ -55,11 +54,52 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Resize handles
+   Replace the old CSS border dividers. Width/height in rem so they scale
+   with the accessibility zoom. Hover and active-drag states use brighter
+   colours; the global html[style*=cursor] rule (set by set_drag_cursor in
+   app.rs) keeps the pointer consistent while dragging.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.resize-handle {
+  flex-shrink: 0;
+  background-color: rgba(245, 166, 35, 0.55);
+  transition: background-color 80ms ease;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background-color: rgba(245, 166, 35, 0.90);
+}
+
+/* Vertical bar between left/right panes */
+.resize-handle-h {
+  width: 0.4rem;
+  cursor: col-resize;
+  align-self: stretch;
+}
+
+/* Horizontal bar between top section / bottom / debug */
+.resize-handle-v {
+  height: 0.4rem;
+  cursor: row-resize;
+  width: 100%;
+}
+
+/* Bottom handle (between Ignored and Debug) uses the green debug palette */
+.resize-handle-debug {
+  background-color: rgba(78, 201, 78, 0.55);
+}
+
+.resize-handle-debug:hover {
+  background-color: rgba(78, 201, 78, 0.90);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Pane base styles
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .pane {
-  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -69,21 +109,15 @@ body {
   transition: background-color 80ms ease;
 }
 
-/* Active-pane highlight: slightly lighter background */
+/* Active-pane highlight */
 .pane.active {
   background-color: #262626;
 }
 
-/* ── Orange dividers between adjacent top panes ─────────────────────────── */
-.top-section .pane:not(:last-child) {
-  border-right: 0.2rem solid rgba(245, 166, 35, 0.55);
-}
-
-/* ── Bottom pane (Ignored) ──────────────────────────────────────────────── */
+/* Bottom pane: flex:none and explicit height set via inline style from signal.
+   Only the border-colour class remains here. */
 .pane.bottom {
   flex: none;
-  height: 20rem;  /* 200px */
-  border-top: 0.2rem solid rgba(245, 166, 35, 0.55);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -92,11 +126,11 @@ body {
 
 .pane-header {
   flex-shrink: 0;
-  padding: 0.5rem 1rem;       /* 5px 10px */
-  font-size: 1.2rem;          /* 12px */
+  padding: 0.5rem 1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.15rem;   /* 1.5px */
+  letter-spacing: 0.15rem;
   color: rgba(245, 166, 35, 0.85);
   border-bottom: 0.1rem solid rgba(245, 166, 35, 0.30);
   background-color: inherit;
@@ -113,7 +147,7 @@ body {
 }
 
 .row-item {
-  padding: 0.5rem 1.2rem;    /* 5px 12px */
+  padding: 0.5rem 1.2rem;
   border-bottom: 0.1rem solid rgba(180, 180, 180, 0.09);
   cursor: pointer;
   white-space: nowrap;
@@ -132,52 +166,52 @@ body {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Debug log panel
+   Height set via inline style from debug_h signal; CSS keeps everything else.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .debug-panel {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  height: 15rem;              /* 150px */
   background-color: #111111;
-  border-top: 0.2rem solid rgba(78, 201, 78, 0.55);
   font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 1.1rem;          /* 11px */
+  font-size: 1.1rem;
   color: #4ec94e;
+  user-select: none;
 }
 
 .debug-header {
   flex-shrink: 0;
-  padding: 0.3rem 0.8rem;    /* 3px 8px */
-  font-size: 1.2rem;          /* 12px */
+  padding: 0.3rem 0.8rem;
+  font-size: 1.2rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.15rem;   /* 1.5px */
+  letter-spacing: 0.15rem;
   color: rgba(78, 201, 78, 0.85);
   border-bottom: 0.1rem solid rgba(78, 201, 78, 0.30);
   background-color: #111111;
 }
 
-/* Scrollable entry area — header stays pinned above it */
 .debug-rows {
   flex: 1;
   overflow-y: scroll;
   min-height: 0;
+  user-select: text; /* allow copying log entries */
 }
 
 .debug-entry {
-  padding: 0.1rem 0.8rem;    /* 1px 8px */
+  padding: 0.1rem 0.8rem;
   border-bottom: 0.1rem solid #181818;
   white-space: pre;
   line-height: 1.6;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Scrollbar styling (Webkit / Blink — covers the Tauri WebView)
+   Scrollbars
    ═══════════════════════════════════════════════════════════════════════════ */
 
 ::-webkit-scrollbar {
-  width: 0.6rem;              /* 6px */
+  width: 0.6rem;
   height: 0.6rem;
 }
 
@@ -187,7 +221,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #3a3a3a;
-  border-radius: 0.3rem;     /* 3px */
+  border-radius: 0.3rem;
 }
 
 ::-webkit-scrollbar-thumb:hover {

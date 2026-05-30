@@ -1,21 +1,18 @@
-// Generic pane component — renders a titled column of selectable row items.
-// Reads AppState from Leptos context; no prop-drilling required.
+// Generic pane component.
+// Derives its own width/height from AppState signals so no size props are
+// required; the parent simply places ResizeHandle components between panes.
 
 use leptos::prelude::*;
 use crate::logic::ActivePane;
 use crate::state::AppState;
 
-/// A pane displaying a vertically scrollable list of items.
-///
-/// Click the pane background to activate it without changing row selection.
-/// Click a row to activate the pane and select that row.
 #[component]
 pub fn Pane(
-    /// Title shown in the header bar at the top of the pane.
+    /// Title shown in the pane header.
     title: &'static str,
     /// Which logical pane this instance represents.
     pane_id: ActivePane,
-    /// Apply bottom-pane CSS variant (fixed height, top orange border).
+    /// Apply bottom-pane CSS variant (top border colour comes from CSS class).
     #[prop(default = false)] is_bottom: bool,
 ) -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
@@ -24,13 +21,32 @@ pub fn Pane(
     let sel_sig   = state.sel_for(pane_id);
     let is_active = move || state.active_pane.get() == pane_id;
 
+    // Derive inline style from layout signals.
+    // Left / right panes: explicit width, flex: none.
+    // Middle pane:        flex: 1, min-width: 0 (fill remaining space).
+    // Bottom pane:        explicit height driven by bottom_h signal.
+    let pane_style = move || match pane_id {
+        ActivePane::Left => {
+            format!("width: {}px; flex: none;", state.left_width.get())
+        }
+        ActivePane::Middle => {
+            "flex: 1; min-width: 0;".to_string()
+        }
+        ActivePane::Right => {
+            format!("width: {}px; flex: none;", state.right_width.get())
+        }
+        ActivePane::Bottom => {
+            format!("height: {}px;", state.bottom_h.get())
+        }
+    };
+
     view! {
         <div
             class="pane"
             class:active=is_active
             class:bottom=is_bottom
+            style=pane_style
             on:click=move |_| {
-                // Background click: activate pane, preserve existing row selection.
                 let was = state.active_pane.get_untracked();
                 state.active_pane.set(pane_id);
                 state.log(format!(
@@ -47,15 +63,12 @@ pub fn Pane(
                         .into_iter()
                         .enumerate()
                         .map(|(i, item)| {
-                            // Capture label before item is consumed by move closure.
                             let label = item.label.clone();
                             view! {
                                 <div
                                     class="row-item"
-                                    // Reactive: updates on selection change without re-rendering the list.
                                     class:selected=move || sel_sig.get() == Some(i)
                                     on:click=move |e| {
-                                        // Stop bubble: pane background handler must not also fire.
                                         e.stop_propagation();
                                         let was_pane = state.active_pane.get_untracked();
                                         let was_sel  = state.sel_for(pane_id).get_untracked();
