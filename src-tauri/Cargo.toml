@@ -29,3 +29,6 @@ toml = "1"
 dirs = "6"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 
+[dev-dependencies]
+regex = "1"
+

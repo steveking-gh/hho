@@ -502,4 +502,87 @@ mod tests {
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.institutions, cfg.institutions);
     }
+
+    #[test]
+    fn test_frontend_ipc_commands_are_registered_in_backend() {
+        use std::collections::HashSet;
+        use std::path::{Path, PathBuf};
+
+        fn get_rs_files(dir: &Path) -> Vec<PathBuf> {
+            let mut files = Vec::new();
+            let mut dirs_to_visit = vec![dir.to_path_buf()];
+            while let Some(current_dir) = dirs_to_visit.pop() {
+                if let Ok(entries) = std::fs::read_dir(current_dir) {
+                    for entry in entries.filter_map(Result::ok) {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            dirs_to_visit.push(path);
+                        } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
+                            files.push(path);
+                        }
+                    }
+                }
+            }
+            files
+        }
+
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+        let manifest_path = Path::new(&manifest_dir);
+        let frontend_dir = manifest_path.join("../src");
+        let backend_dir = manifest_path.join("src");
+
+        // 1. Gather all frontend commands
+        let frontend_files = get_rs_files(&frontend_dir);
+        let mut frontend_cmds = HashSet::new();
+
+        let call_re = regex::Regex::new(r#"\b(call|call_unit|invoke_raw)\s*\(\s*"([^"]+)"#).unwrap();
+        let re_line_comment = regex::Regex::new(r"//.*").unwrap();
+        let re_block_comment = regex::Regex::new(r"(?s)/\*.*?\*/").unwrap();
+
+        for file_path in frontend_files {
+            if let Ok(content) = std::fs::read_to_string(&file_path) {
+                // Strip comments to avoid matching commented-out code
+                let content_no_line = re_line_comment.replace_all(&content, "");
+                let content_clean = re_block_comment.replace_all(&content_no_line, "");
+
+                for cap in call_re.captures_iter(&content_clean) {
+                    frontend_cmds.insert(cap[2].to_string());
+                }
+            }
+        }
+
+        // 2. Gather all backend registered commands from generate_handler!
+        let backend_files = get_rs_files(&backend_dir);
+        let mut backend_cmds = HashSet::new();
+        let handler_re = regex::Regex::new(r"(?s)generate_handler!\[(.*?)\]").unwrap();
+
+        for file_path in backend_files {
+            if let Ok(content) = std::fs::read_to_string(&file_path) {
+                for cap in handler_re.captures_iter(&content) {
+                    let inside = &cap[1];
+                    for part in inside.split(',') {
+                        let trimmed = part.trim();
+                        if !trimmed.is_empty() {
+                            backend_cmds.insert(trimmed.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Find any frontend commands that are not in backend_cmds
+        let mut missing = Vec::new();
+        for cmd in &frontend_cmds {
+            if !backend_cmds.contains(cmd) {
+                missing.push(cmd.clone());
+            }
+        }
+
+        assert!(
+            missing.is_empty(),
+            "Found frontend IPC commands with no matching registered backend handler in generate_handler!: {:?}",
+            missing
+        );
+    }
 }
+
