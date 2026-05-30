@@ -98,6 +98,24 @@ pub fn pane_right(current: ActivePane) -> ActivePane {
     }
 }
 
+// ── Item ID generation ───────────────────────────────────────────────────────
+
+use std::cell::Cell;
+
+thread_local! {
+    // Monotonically increasing counter; wraps on overflow (u32::MAX items unlikely).
+    static ITEM_ID_COUNTER: Cell<u32> = const { Cell::new(1) };
+}
+
+/// Return the next unique item ID. Safe in single-threaded WASM environments.
+pub fn next_item_id() -> u32 {
+    ITEM_ID_COUNTER.with(|c| {
+        let id = c.get();
+        c.set(id.wrapping_add(1));
+        id
+    })
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -210,6 +228,15 @@ mod tests {
             transfer_item(items(&["a", "b", "c", "d"]), items(&[]), Some(1));
         let labels: Vec<_> = new_src.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, ["a", "c", "d"]);
+    }
+
+    // next_item_id ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn next_item_id_increments_monotonically() {
+        let a = next_item_id();
+        let b = next_item_id();
+        assert!(b > a, "expected {b} > {a}");
     }
 
     // pane_left ───────────────────────────────────────────────────────────────

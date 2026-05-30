@@ -24,6 +24,9 @@ pub struct AppState {
 
     // Debug log entries (newest first).
     pub debug_log:    RwSignal<Vec<String>>,
+
+    // Current root font-size in px (1rem); Ctrl+/-/0 adjusts this.
+    pub font_scale:   RwSignal<f32>,
 }
 
 impl AppState {
@@ -32,11 +35,7 @@ impl AppState {
         Self {
             active_pane:  RwSignal::new(ActivePane::Middle),
             left_items:   RwSignal::new(vec![]),
-            middle_items: RwSignal::new(vec![
-                Item { id: 1, label: "thing 1".into() },
-                Item { id: 2, label: "thing 2".into() },
-                Item { id: 3, label: "thing 3".into() },
-            ]),
+            middle_items: RwSignal::new(vec![]),
             right_items:  RwSignal::new(vec![]),
             bottom_items: RwSignal::new(vec![]),
             left_sel:     RwSignal::new(None),
@@ -44,6 +43,7 @@ impl AppState {
             right_sel:    RwSignal::new(None),
             bottom_sel:   RwSignal::new(None),
             debug_log:    RwSignal::new(vec![]),
+            font_scale:   RwSignal::new(10.0),
         }
     }
 

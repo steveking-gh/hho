@@ -1,4 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════════════════
+   Scale root
+   Ctrl+/-/0 in app.rs adjusts html { font-size } between 7px and 20px.
+   All other sizes are in rem so they scale proportionally.
+   Default 10px → 1rem makes the conversion trivial: Xpx = X/10 rem.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html {
+  font-size: 10px; /* = 1rem baseline; overridden at runtime by Ctrl+/- */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Global reset
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -9,9 +20,9 @@
 }
 
 body {
-  overflow: hidden;          /* full-screen app; no browser scroll bars */
+  overflow: hidden;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 1.3rem;  /* 13px */
   line-height: 1.4;
   background-color: #1e1e1e;
 }
@@ -31,7 +42,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;             /* allows flex children with overflow-y to shrink */
+  min-height: 0;
 }
 
 /* ── Top section: three equal-width panes side by side ────────────────────── */
@@ -65,14 +76,14 @@ body {
 
 /* ── Orange dividers between adjacent top panes ─────────────────────────── */
 .top-section .pane:not(:last-child) {
-  border-right: 2px solid rgba(245, 166, 35, 0.55);
+  border-right: 0.2rem solid rgba(245, 166, 35, 0.55);
 }
 
 /* ── Bottom pane (Ignored) ──────────────────────────────────────────────── */
 .pane.bottom {
-  flex: none;                /* fixed height; does not grow with top section */
-  height: 200px;
-  border-top: 2px solid rgba(245, 166, 35, 0.55);
+  flex: none;
+  height: 20rem;  /* 200px */
+  border-top: 0.2rem solid rgba(245, 166, 35, 0.55);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -81,13 +92,13 @@ body {
 
 .pane-header {
   flex-shrink: 0;
-  padding: 5px 10px;
-  font-size: 10px;
+  padding: 0.5rem 1rem;       /* 5px 10px */
+  font-size: 1.2rem;          /* 12px */
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: #707070;
-  border-bottom: 1px solid rgba(245, 166, 35, 0.30);
+  letter-spacing: 0.15rem;   /* 1.5px */
+  color: rgba(245, 166, 35, 0.85);
+  border-bottom: 0.1rem solid rgba(245, 166, 35, 0.30);
   background-color: inherit;
 }
 
@@ -102,8 +113,8 @@ body {
 }
 
 .row-item {
-  padding: 5px 12px;
-  border-bottom: 1px solid rgba(180, 180, 180, 0.09);
+  padding: 0.5rem 1.2rem;    /* 5px 12px */
+  border-bottom: 0.1rem solid rgba(180, 180, 180, 0.09);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -124,19 +135,39 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .debug-panel {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
-  height: 150px;
+  height: 15rem;              /* 150px */
   background-color: #111111;
-  border-top: 1px solid #2a2a2a;
-  overflow-y: scroll;
+  border-top: 0.2rem solid rgba(78, 201, 78, 0.55);
   font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 11px;
-  color: #4ec94e;            /* terminal green */
+  font-size: 1.1rem;          /* 11px */
+  color: #4ec94e;
+}
+
+.debug-header {
+  flex-shrink: 0;
+  padding: 0.3rem 0.8rem;    /* 3px 8px */
+  font-size: 1.2rem;          /* 12px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15rem;   /* 1.5px */
+  color: rgba(78, 201, 78, 0.85);
+  border-bottom: 0.1rem solid rgba(78, 201, 78, 0.30);
+  background-color: #111111;
+}
+
+/* Scrollable entry area — header stays pinned above it */
+.debug-rows {
+  flex: 1;
+  overflow-y: scroll;
+  min-height: 0;
 }
 
 .debug-entry {
-  padding: 1px 8px;
-  border-bottom: 1px solid #181818;
+  padding: 0.1rem 0.8rem;    /* 1px 8px */
+  border-bottom: 0.1rem solid #181818;
   white-space: pre;
   line-height: 1.6;
 }
@@ -146,8 +177,8 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 0.6rem;              /* 6px */
+  height: 0.6rem;
 }
 
 ::-webkit-scrollbar-track {
@@ -156,7 +187,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #3a3a3a;
-  border-radius: 3px;
+  border-radius: 0.3rem;     /* 3px */
 }
 
 ::-webkit-scrollbar-thumb:hover {

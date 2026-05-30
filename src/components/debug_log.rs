@@ -11,12 +11,16 @@ pub fn DebugLog() -> impl IntoView {
 
     view! {
         <div class="debug-panel">
-            {move || {
-                log.get()
-                    .into_iter()
-                    .map(|entry| view! { <div class="debug-entry">{entry}</div> })
-                    .collect_view()
-            }}
+            <div class="debug-header">"Debug"</div>
+            // Separate scrollable container keeps the header pinned while entries scroll.
+            <div class="debug-rows">
+                {move || {
+                    log.get()
+                        .into_iter()
+                        .map(|entry| view! { <div class="debug-entry">{entry}</div> })
+                        .collect_view()
+                }}
+            </div>
         </div>
     }
 }
