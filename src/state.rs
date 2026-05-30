@@ -179,11 +179,12 @@ impl AppState {
         });
     }
 
-    /// Move selected item in `from` to the end of `to`; return log description.
+    /// Move selected item in `from` to `to`, keeping the target sorted; return log description.
     pub fn transfer(self, from: ActivePane, to: ActivePane) -> String {
         let from_items = self.items_for(from).get_untracked();
         let to_items   = self.items_for(to).get_untracked();
         let from_sel   = self.sel_for(from).get_untracked();
+        let to_sel     = self.sel_for(to).get_untracked();
 
         match from_sel {
             None => format!("no-op: {} has no selection", from),
@@ -192,11 +193,22 @@ impl AppState {
             }
             Some(idx) => {
                 let moved_label = from_items[idx].label.clone();
+                
+                // Tracks the ID of the selected item in target pane to restore it after sorting.
+                let selected_id_in_to = to_sel.and_then(|t_idx| to_items.get(t_idx).map(|item| item.id));
+
                 let (new_from, new_to, new_sel) =
                     transfer_item(from_items, to_items, Some(idx));
                 self.items_for(from).set(new_from);
-                self.items_for(to).set(new_to);
+                self.items_for(to).set(new_to.clone());
                 self.sel_for(from).set(new_sel);
+
+                // Restores target pane selection index based on item ID.
+                if let Some(target_id) = selected_id_in_to {
+                    let new_to_sel = new_to.iter().position(|item| item.id == target_id);
+                    self.sel_for(to).set(new_to_sel);
+                }
+
                 format!(
                     "moved \"{moved_label}\" {} → {} | {}_sel={:?}",
                     from, to, from, new_sel
@@ -212,10 +224,13 @@ impl AppState {
         let txns = self.raw_transactions.get_untracked();
         let inst = self.current_institution.get_untracked().unwrap_or_else(|| "CSV".to_string());
 
-        let filtered: Vec<Transaction> = txns
+        let mut filtered: Vec<Transaction> = txns
             .into_iter()
             .filter(|t| crate::logic::match_month_year(&t.date, year, month))
             .collect();
+
+        // Sorts transactions chronologically from oldest to youngest.
+        filtered.sort_by(|a, b| a.date.cmp(&b.date));
 
         let count = filtered.len();
         let items: Vec<Item> = filtered
@@ -225,6 +240,7 @@ impl AppState {
                 label: format_txn(t),
                 amount_cents: t.amount_cents,
                 direction: t.direction,
+                date: t.date.clone(),
             })
             .collect();
         

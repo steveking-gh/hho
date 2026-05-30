@@ -28,6 +28,7 @@ pub struct Item {
     pub label:        String,
     pub amount_cents: i64,
     pub direction:    hho_types::Direction,
+    pub date:         String,
 }
 
 /// Calculates the net total sum of pane items in cents.
@@ -84,6 +85,8 @@ pub fn transfer_item(
     }
     let item = source.remove(idx);
     dest.push(item);
+    // Sorts destination pane items in date order from oldest to youngest.
+    dest.sort_by(|a, b| a.date.cmp(&b.date));
     let new_sel = if source.is_empty() {
         None
     } else {
@@ -167,6 +170,7 @@ mod tests {
                 label: l.to_string(),
                 amount_cents: 0,
                 direction: hho_types::Direction::Debit,
+                date: "".to_string(),
             })
             .collect()
     }
@@ -350,14 +354,41 @@ mod tests {
                 label: "a".to_string(),
                 amount_cents: 1000,
                 direction: hho_types::Direction::Credit,
+                date: "".to_string(),
             },
             Item {
                 id: 2,
                 label: "b".to_string(),
                 amount_cents: 250,
                 direction: hho_types::Direction::Debit,
+                date: "".to_string(),
             },
         ];
         assert_eq!(calculate_total_cents(&items), 750);
+    }
+
+    #[test]
+    fn transfer_item_keeps_dest_sorted_by_date() {
+        let source = vec![
+            Item {
+                id: 1,
+                label: "2026-05-18 │ a".into(),
+                amount_cents: 100,
+                direction: hho_types::Direction::Debit,
+                date: "2026-05-18".into(),
+            }
+        ];
+        let dest = vec![
+            Item {
+                id: 2,
+                label: "2026-05-20 │ b".into(),
+                amount_cents: 200,
+                direction: hho_types::Direction::Debit,
+                date: "2026-05-20".into(),
+            }
+        ];
+        let (_, new_dst, _) = transfer_item(source, dest, Some(0));
+        assert_eq!(new_dst[0].date, "2026-05-18");
+        assert_eq!(new_dst[1].date, "2026-05-20");
     }
 }
