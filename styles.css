@@ -111,7 +111,7 @@ body {
 
 /* Active-pane highlight */
 .pane.active {
-  background-color: #262626;
+  background-color: #2f2008;
 }
 
 /* Bottom pane: flex:none and explicit height set via inline style from signal.
@@ -235,7 +235,7 @@ body {
 .modal-title {
   font-size: 1.6rem;
   font-weight: 700;
-  color: rgba(245, 166, 35, 0.9);
+  color: rgb(245, 165, 35);
   margin-bottom: 1.2rem;
 }
 

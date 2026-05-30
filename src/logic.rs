@@ -80,21 +80,23 @@ pub fn transfer_item(
 
 // ── Pane switching ───────────────────────────────────────────────────────────
 
-/// Target pane for ArrowLeft: Right→Middle→Left; Left and Bottom unchanged.
+/// Target pane for ArrowLeft: Right→Middle→Left→Bottom→Left rotation.
 pub fn pane_left(current: ActivePane) -> ActivePane {
     match current {
+        ActivePane::Left   => ActivePane::Bottom,
         ActivePane::Middle => ActivePane::Left,
         ActivePane::Right  => ActivePane::Middle,
-        other              => other,
+        ActivePane::Bottom => ActivePane::Left,
     }
 }
 
-/// Target pane for ArrowRight: Left→Middle→Right; Right and Bottom unchanged.
+/// Target pane for ArrowRight: Left→Middle→Right→Bottom→Right rotation.
 pub fn pane_right(current: ActivePane) -> ActivePane {
     match current {
         ActivePane::Left   => ActivePane::Middle,
         ActivePane::Middle => ActivePane::Right,
-        other              => other,
+        ActivePane::Right  => ActivePane::Bottom,
+        ActivePane::Bottom => ActivePane::Right,
     }
 }
 
@@ -252,13 +254,13 @@ mod tests {
     }
 
     #[test]
-    fn pane_left_from_left_is_noop() {
-        assert_eq!(pane_left(ActivePane::Left), ActivePane::Left);
+    fn pane_left_from_left_goes_to_bottom() {
+        assert_eq!(pane_left(ActivePane::Left), ActivePane::Bottom);
     }
 
     #[test]
-    fn pane_left_from_bottom_is_noop() {
-        assert_eq!(pane_left(ActivePane::Bottom), ActivePane::Bottom);
+    fn pane_left_from_bottom_goes_to_left() {
+        assert_eq!(pane_left(ActivePane::Bottom), ActivePane::Left);
     }
 
     // pane_right ──────────────────────────────────────────────────────────────
@@ -274,12 +276,12 @@ mod tests {
     }
 
     #[test]
-    fn pane_right_from_right_is_noop() {
-        assert_eq!(pane_right(ActivePane::Right), ActivePane::Right);
+    fn pane_right_from_right_goes_to_bottom() {
+        assert_eq!(pane_right(ActivePane::Right), ActivePane::Bottom);
     }
 
     #[test]
-    fn pane_right_from_bottom_is_noop() {
-        assert_eq!(pane_right(ActivePane::Bottom), ActivePane::Bottom);
+    fn pane_right_from_bottom_goes_to_right() {
+        assert_eq!(pane_right(ActivePane::Bottom), ActivePane::Right);
     }
 }
