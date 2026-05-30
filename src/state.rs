@@ -93,6 +93,8 @@ pub struct AppState {
     pub auto_assign_rules: RwSignal<Vec<hho_types::AutoAssignRule>>,
     pub assign_modal_item: RwSignal<Option<Item>>,
     pub is_rules_modal_open: RwSignal<bool>,
+    // State signal controlling the manual transaction creation modal.
+    pub is_create_transaction_modal_open: RwSignal<bool>,
 }
 
 impl AppState {
@@ -127,6 +129,7 @@ impl AppState {
             auto_assign_rules: RwSignal::new(vec![]),
             assign_modal_item: RwSignal::new(None),
             is_rules_modal_open: RwSignal::new(false),
+            is_create_transaction_modal_open: RwSignal::new(false),
         };
         // Sets default month and year to previous calendar month from current date.
         let now = js_sys::Date::new_0();

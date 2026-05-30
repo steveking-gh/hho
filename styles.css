@@ -457,6 +457,11 @@ body {
   font-size: 1.4rem;
 }
 
+.header-icon-orange {
+  color: rgb(245, 165, 35);
+  font-weight: 700;
+}
+
 /* ── Recent Files Dropdown ───────────────────────────────────────────────── */
 
 .dropdown {
@@ -663,7 +668,8 @@ body {
   background-color: rgba(245, 166, 35, 1);
 }
 
-.modal-field input[type="text"] {
+.modal-field input[type="text"],
+.modal-field input[type="date"] {
   background-color: #1a1a1a;
   color: #e0e0e0;
   border: 0.1rem solid #444;
@@ -673,7 +679,8 @@ body {
   font-size: 1.3rem;
 }
 
-.modal-field input[type="text"]:focus {
+.modal-field input[type="text"]:focus,
+.modal-field input[type="date"]:focus {
   border-color: rgb(245, 165, 35);
   outline: none;
 }

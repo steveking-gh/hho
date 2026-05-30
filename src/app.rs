@@ -18,6 +18,7 @@ use crate::components::{
     month_modal::MonthModal,
     rule_editor_modal::RuleEditorModal,
     rules_modal::RulesModal,
+    create_transaction_modal::CreateTransactionModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
 };
@@ -244,6 +245,7 @@ pub fn App() -> impl IntoView {
             || state.assign_modal_item.get_untracked().is_some()
             || state.is_month_modal_open.get_untracked()
             || state.is_rules_modal_open.get_untracked()
+            || state.is_create_transaction_modal_open.get_untracked()
         {
             return;
         }
@@ -440,6 +442,9 @@ pub fn App() -> impl IntoView {
 
             // Rules manager modal: rendered only while open.
             {move || state.is_rules_modal_open.get().then(|| view! { <RulesModal /> })}
+
+            // Renders the manual transaction creation modal when open.
+            {move || state.is_create_transaction_modal_open.get().then(|| view! { <CreateTransactionModal /> })}
         </div>
     }
 }

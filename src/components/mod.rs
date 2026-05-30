@@ -6,3 +6,4 @@ pub mod header;
 pub mod month_modal;
 pub mod rule_editor_modal;
 pub mod rules_modal;
+pub mod create_transaction_modal;
