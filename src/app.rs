@@ -15,6 +15,7 @@ use crate::components::{
     debug_log::DebugLog,
     header::Header,
     mapping_modal::MappingModal,
+    month_modal::MonthModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
 };
@@ -351,6 +352,9 @@ pub fn App() -> impl IntoView {
 
             // Mapping modal: rendered only while a pending mapping exists.
             {move || state.pending_mapping.get().map(|pm| view! { <MappingModal pm=pm /> })}
+
+            // Month selection modal: rendered only while open.
+            {move || state.is_month_modal_open.get().then(|| view! { <MonthModal /> })}
         </div>
     }
 }

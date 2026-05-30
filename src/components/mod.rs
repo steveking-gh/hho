@@ -3,3 +3,4 @@ pub mod mapping_modal;
 pub mod pane;
 pub mod resize_handle;
 pub mod header;
+pub mod month_modal;

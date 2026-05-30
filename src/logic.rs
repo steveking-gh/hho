@@ -109,13 +109,33 @@ thread_local! {
     static ITEM_ID_COUNTER: Cell<u32> = const { Cell::new(1) };
 }
 
-/// Return the next unique item ID. Safe in single-threaded WASM environments.
 pub fn next_item_id() -> u32 {
     ITEM_ID_COUNTER.with(|c| {
         let id = c.get();
         c.set(id.wrapping_add(1));
         id
     })
+}
+
+/// Matches a transaction date string against a selected year and month.
+/// Expects date format "YYYY-MM-DD".
+pub fn match_month_year(date_str: &str, year: i32, month: i32) -> bool {
+    if date_str.len() < 10 {
+        return false;
+    }
+    let t_year: i32 = date_str[0..4].parse().unwrap_or(0);
+    let t_month: i32 = date_str[5..7].parse().unwrap_or(0);
+    t_year == year && t_month == month
+}
+
+/// Calculates the previous calendar month and year.
+/// Accepts year and 1-based month. Returns (prev_year, prev_month).
+pub fn get_previous_month_year(year: i32, month: i32) -> (i32, i32) {
+    if month <= 1 {
+        (year - 1, 12)
+    } else {
+        (year, month - 1)
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -283,5 +303,23 @@ mod tests {
     #[test]
     fn pane_right_from_bottom_goes_to_right() {
         assert_eq!(pane_right(ActivePane::Bottom), ActivePane::Right);
+    }
+
+    // Month / Year filtering tests
+
+    #[test]
+    fn match_month_year_validates_dates_correctly() {
+        assert!(match_month_year("2026-05-18", 2026, 5));
+        assert!(match_month_year("2025-12-01", 2025, 12));
+        assert!(!match_month_year("2026-05-18", 2026, 6));
+        assert!(!match_month_year("2026-05-18", 2025, 5));
+        assert!(!match_month_year("invalid", 2026, 5));
+        assert!(!match_month_year("2026-05", 2026, 5));
+    }
+
+    #[test]
+    fn get_previous_month_year_calculates_correct_periods() {
+        assert_eq!(get_previous_month_year(2026, 5), (2026, 4));
+        assert_eq!(get_previous_month_year(2026, 1), (2025, 12));
     }
 }

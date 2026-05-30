@@ -492,3 +492,81 @@ body {
   font-style: italic;
   font-size: 1.2rem;
 }
+
+/* ── Month Selector Modal ─────────────────────────────────────────────────── */
+
+.month-modal {
+  width: 32rem;
+}
+
+.year-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1.6rem;
+}
+
+.year-display {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: rgb(245, 165, 35);
+  font-family: inherit;
+  min-width: 6rem;
+  text-align: center;
+}
+
+.year-btn {
+  padding: 0.4rem 1rem;
+  background-color: #262626;
+  border: 0.1rem solid #3a3a3a;
+  border-radius: 0.4rem;
+  color: #d8d8d8;
+  font-family: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background-color 80ms ease, border-color 80ms ease;
+}
+
+.year-btn:hover {
+  background-color: #363636;
+  border-color: #555;
+  color: #ffffff;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8rem;
+  margin: 1.6rem 0;
+}
+
+.month-btn {
+  padding: 0.8rem 0;
+  background-color: #262626;
+  border: 0.1rem solid #3a3a3a;
+  border-radius: 0.4rem;
+  color: #d8d8d8;
+  font-family: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 80ms ease, border-color 80ms ease, color 80ms ease;
+}
+
+.month-btn:hover {
+  background-color: #363636;
+  border-color: #555;
+  color: #ffffff;
+}
+
+.month-btn.selected {
+  background-color: rgba(245, 166, 35, 0.85);
+  border-color: rgba(245, 166, 35, 0.9);
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
+.month-btn.selected:hover {
+  background-color: rgba(245, 166, 35, 1);
+}

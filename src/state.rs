@@ -78,11 +78,18 @@ pub struct AppState {
 
     // ── Recent files ──────────────────────────────────────────────────────────
     pub recent_files: RwSignal<Vec<String>>,
+
+    // ── Selected period & transactions cache ──────────────────────────────────
+    pub selected_year: RwSignal<i32>,
+    pub selected_month: RwSignal<i32>,
+    pub raw_transactions: RwSignal<Vec<Transaction>>,
+    pub current_institution: RwSignal<Option<String>>,
+    pub is_month_modal_open: RwSignal<bool>,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        Self {
+        let app = Self {
             active_pane:  RwSignal::new(ActivePane::Middle),
             left_items:   RwSignal::new(vec![]),
             middle_items: RwSignal::new(vec![]),
@@ -103,23 +110,29 @@ impl AppState {
             drag:         RwSignal::new(None),
             pending_mapping: RwSignal::new(None),
             recent_files: RwSignal::new(vec![]),
-        }
+            selected_year: RwSignal::new(0),
+            selected_month: RwSignal::new(0),
+            raw_transactions: RwSignal::new(vec![]),
+            current_institution: RwSignal::new(None),
+            is_month_modal_open: RwSignal::new(false),
+        };
+        // Sets default month and year to previous calendar month from current date.
+        let now = js_sys::Date::new_0();
+        let current_y = now.get_full_year() as i32;
+        let current_m = now.get_month() as i32 + 1;
+        let (prev_y, prev_m) = crate::logic::get_previous_month_year(current_y, current_m);
+        app.selected_year.set(prev_y);
+        app.selected_month.set(prev_m);
+        app
     }
 
     /// Replace the Uncategorized pane with parsed transactions, select the
     /// first row, and activate the pane.
     pub fn populate_transactions(self, institution: &str, txns: Vec<Transaction>) {
-        let count = txns.len();
-        let items: Vec<Item> = txns
-            .iter()
-            .map(|t| Item { id: next_item_id(), label: format_txn(t) })
-            .collect();
-        self.middle_items.set(items);
-        self.middle_sel.set(if count > 0 { Some(0) } else { None });
+        self.raw_transactions.set(txns);
+        self.current_institution.set(Some(institution.to_string()));
+        self.apply_month_filter();
         self.active_pane.set(ActivePane::Middle);
-        self.log(format!(
-            "[File] \"{institution}\" → {count} transactions loaded into Uncategorized"
-        ));
         self.refresh_recent_files();
     }
 
@@ -186,5 +199,30 @@ impl AppState {
                 )
             }
         }
+    }
+
+    /// Prunes transaction list by selected month/year and populates the middle pane.
+    pub fn apply_month_filter(self) {
+        let year = self.selected_year.get_untracked();
+        let month = self.selected_month.get_untracked();
+        let txns = self.raw_transactions.get_untracked();
+        let inst = self.current_institution.get_untracked().unwrap_or_else(|| "CSV".to_string());
+
+        let filtered: Vec<Transaction> = txns
+            .into_iter()
+            .filter(|t| crate::logic::match_month_year(&t.date, year, month))
+            .collect();
+
+        let count = filtered.len();
+        let items: Vec<Item> = filtered
+            .iter()
+            .map(|t| Item { id: next_item_id(), label: format_txn(t) })
+            .collect();
+        
+        self.middle_items.set(items);
+        self.middle_sel.set(if count > 0 { Some(0) } else { None });
+        self.log(format!(
+            "[Filter] Applied {year}-{month:02} to \"{inst}\" → {count} transactions loaded into Uncategorized"
+        ));
     }
 }

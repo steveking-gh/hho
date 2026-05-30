@@ -11,6 +11,26 @@ fn get_filename(path: &str) -> &str {
     path.rsplit(sep).next().unwrap_or(path)
 }
 
+/// Formats month number and year to display text.
+fn format_month_year(month: i32, year: i32) -> String {
+    let month_name = match month {
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dec",
+        _ => "",
+    };
+    format!("{} {}", month_name, year)
+}
+
 #[component]
 pub fn Header() -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
@@ -39,6 +59,11 @@ pub fn Header() -> impl IntoView {
     let toggle_dropdown = move |e: web_sys::MouseEvent| {
         e.stop_propagation();
         is_dropdown_open.update(|v| *v = !*v);
+    };
+
+    // Month / Year button to open period selection modal.
+    let on_toggle_month = move |_| {
+        state.is_month_modal_open.set(true);
     };
 
     // Register window click listener to auto-close dropdown when clicking outside.
@@ -99,6 +124,11 @@ pub fn Header() -> impl IntoView {
                         }
                     })}
                 </div>
+
+                <button class="header-btn" on:click=on_toggle_month>
+                    <span class="btn-icon">"📅"</span>
+                    {move || format_month_year(state.selected_month.get(), state.selected_year.get())}
+                </button>
             </div>
 
             <div class="header-branding">
