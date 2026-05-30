@@ -180,3 +180,151 @@ styles.css         ← complete rewrite for new layout
 | D  | Bottom pane layout    | **Single flat list**                              |
 | E  | Active pane indicator | **Slightly lighter background** on active pane    |
 | F  | Pane headers          | **Yes** — Joint / Uncategorized / Mine / Ignored  |
+
+---
+
+## Feature: CSV Transaction Mapping
+
+Banks and credit-card CSVs are per-institution but share four extractable
+fields: **Date**, **Vendor**, **Amount**, **Direction** (Debit/Credit). HHO
+learns a per-institution column mapping, keyed off the header row, and persists
+it in `hho_user_config.toml`.
+
+### Feature Decisions
+
+| \# | Question                  | Decision                                                  |
+|----|---------------------------|-----------------------------------------------------------|
+| 1  | Debit/Credit schemes      | **Single-signed** + **Type-column** only (Split deferred) |
+| 2  | Date/Amount handling      | **Structured** — integer cents + canonical ISO date       |
+| 3  | v1 mapping UI             | **Modal on unknown header only** (no manager screen)      |
+| 4  | Mapping key               | Normalized header-row **fingerprint** (exact match)       |
+
+### Open / Apply Flow
+
+```
+read header row
+  → fingerprint = headers.map(trim+lowercase).join(",")
+  → look up fingerprint among saved institutions
+      ├── found    → parse each row → Vec<Transaction> → Uncategorized pane
+      └── not found → emit NeedsMapping → frontend shows modal
+                       → user maps → save_mapping → parse → Uncategorized pane
+```
+
+### Data Model (backend `src-tauri/src/mapping.rs`)
+
+```rust
+enum Direction { Debit, Credit }
+
+// v1 supports two schemes; Split { debit_col, credit_col } is a future variant.
+enum AmountScheme {
+    SingleSigned { amount_col: usize, debit_is_negative: bool },
+    TypeColumn   { amount_col: usize, type_col: usize,
+                   debit_labels: Vec<String>, credit_labels: Vec<String> },
+}
+
+struct Institution {
+    name:        String,
+    fingerprint: String,       // normalized header key
+    date_col:    usize,
+    vendor_col:  usize,
+    ignore_cols: Vec<usize>,   // hidden from the UI ("hidden columns")
+    amount:      AmountScheme,
+}
+
+struct Transaction {
+    date:         String,  // canonical "YYYY-MM-DD" (sorts chronologically as text)
+    vendor:       String,
+    amount_cents: i64,     // magnitude, always >= 0  (integer cents, never f64)
+    direction:    Direction,
+}
+```
+
+**BKM — money as integer cents.** Tolerant `parse_amount_cents` handles `$`,
+thousands commas, `(5.40)` parentheses-negatives, and trailing `CR`/`DR`.
+
+**BKM — dates to canonical ISO.** `parse_date` tries an ordered list of common
+formats (`MM/DD/YYYY`, `M/D/YYYY`, `YYYY-MM-DD`, `DD-Mon-YYYY`, …) and emits
+`YYYY-MM-DD`; lexical order then equals chronological order.
+
+### Config File Additions (`~/hho_user_config.toml`)
+
+```toml
+[[institution]]
+name = "Chase Sapphire"
+fingerprint = "trans date,description,category,type,amount"
+date_col = 0
+vendor_col = 1
+ignore_cols = [2, 3]
+amount_scheme = "single_signed"
+amount_col = 4
+debit_is_negative = true
+
+[[institution]]
+name = "Credit Union"
+fingerprint = "date,description,amount,transaction type"
+date_col = 0
+vendor_col = 1
+ignore_cols = []
+amount_scheme = "type_column"
+amount_col = 2
+type_col = 3
+debit_labels = ["DEBIT", "DR", "Sale"]
+credit_labels = ["CREDIT", "CR", "Payment"]
+```
+
+### Column-Chooser Modal (shown only for unknown headers)
+
+```
+┌─ Map Columns — New Institution ─────────────────────────────┐
+│ Institution name: [ Chase Sapphire________ ]                │
+│ Preview (first 3 rows):                                     │
+│ ┌──────────┬────────────┬──────────┬────────┬──────────┐   │
+│ │Trans Date│Description │ Category │ Type   │ Amount   │   │
+│ │01/15/2026│STARBUCKS   │Dining    │ Sale   │ -5.40    │   │
+│ └──────────┴────────────┴──────────┴────────┴──────────┘   │
+│ Transaction Date → [ Trans Date ▾ ]                         │
+│ Vendor Name      → [ Description ▾ ]                        │
+│ Amount/Direction: (•) Single signed  ( ) Type column        │
+│   Amount column → [ Amount ▾ ]   Debit is (•)neg ( )pos     │
+│ Hidden columns: [ ]Date [ ]Desc [✓]Category [✓]Type [ ]Amt  │
+│                       [ Cancel ]   [ Save & Apply ]         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Backend computes **heuristic pre-selections** from header names
+(`date`/`posted` → Date; `description`/`payee`/`merchant` → Vendor;
+`amount`/`amt` → Amount); the user usually just confirms.
+
+### IPC Changes
+
+- `pick_csv` / `open_csv` return `Mapped { name, transactions }`
+  **or** `NeedsMapping { fingerprint, headers, sample_rows, suggested }`.
+- new `save_mapping(institution, pending_path) -> Vec<Transaction>`
+  (persists institution, then parses the pending file).
+
+### Frontend Changes
+
+- `Item` carries a `Transaction`; renders a one-line label
+  (`2026-01-15 │ Starbucks │ −$5.40`).
+- new `MappingModal` component driven by
+  `pending_mapping: RwSignal<Option<NeedsMapping>>` in `state.rs`.
+- `populate_middle_pane` consumes structured transactions.
+
+### Terminology Note
+
+**Hidden columns** (this feature) ≠ the **Ignored pane** (existing bottom
+bucket). Modal label uses "Hidden columns" to avoid the collision.
+
+### Testing Plan (native unit tests in `mapping.rs`)
+
+`fingerprint` normalization · `find_institution` hit/miss · `parse_amount_cents`
+across `$1,234.56` / `(5.40)` / `5.40 CR` / `-5.40` · `parse_date` across each
+supported format · `resolve_direction` for both schemes · `parse_row`
+end-to-end per scheme · `suggest_mapping` heuristics · TOML round-trip of each
+`AmountScheme`.
+
+### Phasing
+
+1. **Backend core** — fingerprint, config schema, 2-scheme parser + date/amount
+   parsers, auto-apply known institutions, return `NeedsMapping`. Full tests.
+2. **Modal UI** — column chooser, heuristic suggestions, `save_mapping`.

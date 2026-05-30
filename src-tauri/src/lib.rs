@@ -1,6 +1,8 @@
 // Tauri application entry point.
 // Responsibilities: native menu, user-config persistence (TOML in home dir),
-// CSV reading, layout persistence, window-size persistence, and IPC commands.
+// CSV reading + transaction mapping, layout/window persistence, IPC commands.
+
+mod mapping;
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -8,6 +10,8 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+
+use mapping::{Institution, SuggestedMapping, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -57,6 +61,11 @@ struct UserConfig {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     window_height: Option<f64>,
+
+    // ── Saved column mappings ───────────────────────────────────────────────────
+    // Declared LAST: TOML requires array-of-tables to follow all scalar fields.
+    #[serde(default)]
+    institutions: Vec<Institution>,
 }
 
 // ── Config file helpers ───────────────────────────────────────────────────────
@@ -102,10 +111,25 @@ struct ConfigState {
 
 // ── IPC types ─────────────────────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CsvFile {
-    pub path: String,
-    pub rows: Vec<String>,
+/// Outcome of opening a CSV, returned to the frontend.
+/// Mapped     → a saved institution matched; transactions are ready.
+/// NeedsMapping → unknown header; frontend shows the column-chooser modal.
+/// Cancelled  → user dismissed the file dialog.
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+enum OpenResult {
+    Mapped {
+        institution: String,
+        transactions: Vec<Transaction>,
+    },
+    NeedsMapping {
+        fingerprint: String,
+        headers: Vec<String>,
+        sample_rows: Vec<Vec<String>>,
+        pending_path: String,
+        suggested: SuggestedMapping,
+    },
+    Cancelled,
 }
 
 /// Layout dimensions sent to the frontend on startup.
@@ -126,26 +150,29 @@ enum MenuAction {
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
-fn read_csv_rows(path: &Path) -> Result<Vec<String>, String> {
+/// Read a CSV into its header row and data rows (each a Vec of cell strings).
+/// `flexible` tolerates ragged rows; the first record is treated as the header.
+fn read_csv_table(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>), String> {
     let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(false)
+        .has_headers(true)
         .flexible(true)
         .from_path(path)
         .map_err(|e| format!("csv open: {e}"))?;
 
+    let headers = rdr
+        .headers()
+        .map_err(|e| format!("csv header: {e}"))?
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
     let rows = rdr
         .records()
         .filter_map(|r| r.ok())
-        .map(|record| {
-            record.iter()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(" │ ")
-        })
-        .filter(|l| !l.is_empty())
+        .map(|record| record.iter().map(|s| s.to_string()).collect())
         .collect();
-    Ok(rows)
+
+    Ok((headers, rows))
 }
 
 // ── Recent-file helpers ───────────────────────────────────────────────────────
@@ -192,12 +219,15 @@ fn build_recent_submenu(
 
 // ── Shared open logic ─────────────────────────────────────────────────────────
 
+/// Read the CSV, record it in recents, rebuild the menu, then either parse it
+/// with a saved institution (Mapped) or request a new mapping (NeedsMapping).
 fn finalize_open(
     app:   &AppHandle,
     state: &ConfigState,
     path:  PathBuf,
-) -> Result<CsvFile, String> {
-    let rows     = read_csv_rows(&path)?;
+) -> Result<OpenResult, String> {
+    let (headers, rows) = read_csv_table(&path)?;
+    let fp       = mapping::fingerprint(&headers);
     let path_str = path.to_string_lossy().to_string();
     let dir_str  = path.parent().map(|p| p.to_string_lossy().to_string());
 
@@ -208,7 +238,28 @@ fn finalize_open(
 
     let menu = build_menu(app, &cfg.recent_files).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
-    Ok(CsvFile { path: path_str, rows })
+
+    // Known institution → parse rows; unknown → ask the frontend for a mapping.
+    let result = match mapping::find_institution(&fp, &cfg.institutions) {
+        Some(inst) => {
+            let transactions = rows
+                .iter()
+                .filter_map(|r| mapping::parse_row(inst, r))
+                .collect();
+            OpenResult::Mapped {
+                institution: inst.name.clone(),
+                transactions,
+            }
+        }
+        None => OpenResult::NeedsMapping {
+            fingerprint:  fp,
+            sample_rows:  rows.iter().take(3).cloned().collect(),
+            suggested:    mapping::suggest_mapping(&headers),
+            headers,
+            pending_path: path_str,
+        },
+    };
+    Ok(result)
 }
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
@@ -217,7 +268,7 @@ fn finalize_open(
 async fn pick_csv(
     app:   AppHandle,
     state: State<'_, ConfigState>,
-) -> Result<Option<CsvFile>, String> {
+) -> Result<OpenResult, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let start_dir: Option<PathBuf> = {
@@ -234,11 +285,13 @@ async fn pick_csv(
         builder = builder.set_directory(dir);
     }
 
-    let Some(fp) = builder.blocking_pick_file() else { return Ok(None) };
+    let Some(fp) = builder.blocking_pick_file() else {
+        return Ok(OpenResult::Cancelled);
+    };
     let path = fp.as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
-    finalize_open(&app, &state, path).map(Some)
+    finalize_open(&app, &state, path)
 }
 
 #[tauri::command]
@@ -246,10 +299,36 @@ async fn open_csv(
     path:  String,
     app:   AppHandle,
     state: State<'_, ConfigState>,
-) -> Result<Option<CsvFile>, String> {
+) -> Result<OpenResult, String> {
     let pb = PathBuf::from(&path);
     if !pb.exists() { return Err(format!("file not found: {path}")); }
-    finalize_open(&app, &state, pb).map(Some)
+    finalize_open(&app, &state, pb)
+}
+
+/// Persist a user-defined column mapping, then parse the pending file with it.
+/// Replaces any existing mapping sharing the same header fingerprint.
+#[tauri::command]
+fn save_mapping(
+    institution:  Institution,
+    pending_path: String,
+    state:        State<'_, ConfigState>,
+) -> Result<Vec<Transaction>, String> {
+    let (headers, rows) = read_csv_table(Path::new(&pending_path))?;
+
+    // Trust the backend-computed fingerprint over whatever the frontend sent.
+    let mut inst = institution;
+    inst.fingerprint = mapping::fingerprint(&headers);
+
+    let mut cfg = state.config.lock().unwrap();
+    cfg.institutions.retain(|i| i.fingerprint != inst.fingerprint);
+    cfg.institutions.push(inst.clone());
+    save_config(&cfg);
+
+    let transactions = rows
+        .iter()
+        .filter_map(|r| mapping::parse_row(&inst, r))
+        .collect();
+    Ok(transactions)
 }
 
 /// Return persisted layout dimensions; frontend applies them to size signals.
@@ -339,7 +418,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            pick_csv, open_csv,
+            pick_csv, open_csv, save_mapping,
             get_layout, save_layout, save_window_size,
         ])
         .run(tauri::generate_context!())
@@ -392,6 +471,7 @@ mod tests {
             debug_h:         Some(130.0),
             window_width:    Some(1200.0),
             window_height:   Some(800.0),
+            institutions:    vec![],
         };
         let toml_str  = toml::to_string_pretty(&original).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
@@ -411,14 +491,42 @@ mod tests {
     }
 
     #[test]
-    fn csv_rows_join_columns_with_separator() {
+    fn read_csv_table_splits_header_and_rows() {
         let dir  = std::env::temp_dir();
-        let path = dir.join("hho_test.csv");
-        std::fs::write(&path, "Alice,30,Engineer\nBob,,Manager\n\n").unwrap();
-        let rows = read_csv_rows(&path).unwrap();
-        assert_eq!(rows[0], "Alice │ 30 │ Engineer");
-        assert_eq!(rows[1], "Bob │ Manager");
-        assert_eq!(rows.len(), 2);
+        let path = dir.join("hho_table_test.csv");
+        std::fs::write(&path, "Date,Description,Amount\n05/18/2026,STARBUCKS,-5.40\n").unwrap();
+        let (headers, rows) = read_csv_table(&path).unwrap();
+        assert_eq!(headers, vec!["Date", "Description", "Amount"]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0], vec!["05/18/2026", "STARBUCKS", "-5.40"]);
         std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn config_with_institution_roundtrips_through_toml() {
+        let cfg = UserConfig {
+            recent_files:    vec![],
+            last_opened_dir: None,
+            left_width:      None,
+            right_width:     None,
+            bottom_h:        None,
+            debug_h:         None,
+            window_width:    None,
+            window_height:   None,
+            institutions:    vec![mapping::Institution {
+                name: "Chase".into(),
+                fingerprint: "date,description,amount".into(),
+                date_col: 0,
+                vendor_col: 1,
+                ignore_cols: vec![],
+                amount: mapping::AmountScheme::SingleSigned {
+                    amount_col: 2,
+                    debit_is_negative: true,
+                },
+            }],
+        };
+        let toml_str  = toml::to_string_pretty(&cfg).unwrap();
+        let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(recovered.institutions, cfg.institutions);
     }
 }

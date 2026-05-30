@@ -131,7 +131,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.15rem;
-  color: rgba(245, 166, 35, 0.85);
+  color: rgb(245, 165, 35);
   border-bottom: 0.1rem solid rgba(245, 166, 35, 0.30);
   background-color: inherit;
 }
@@ -204,6 +204,159 @@ body {
   border-bottom: 0.1rem solid #181818;
   white-space: pre;
   line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mapping modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  width: min(90vw, 70rem);
+  max-height: 90vh;
+  overflow-y: auto;
+  background-color: #232323;
+  border: 0.1rem solid rgba(245, 166, 35, 0.55);
+  border-radius: 0.4rem;
+  padding: 1.6rem;
+  color: #d8d8d8;
+  box-shadow: 0 0.8rem 3rem rgba(0, 0, 0, 0.6);
+}
+
+.modal-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: rgba(245, 166, 35, 0.9);
+  margin-bottom: 1.2rem;
+}
+
+.modal-section-label {
+  margin: 1.2rem 0 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+  color: #888;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.8rem;
+}
+
+.modal-field > span {
+  font-size: 1.2rem;
+  color: #aaa;
+}
+
+.modal-input,
+.modal-field select {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  border: 0.1rem solid #444;
+  border-radius: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  font-family: inherit;
+  font-size: 1.2rem;
+}
+
+/* ── Preview table ───────────────────────────────────────────────────────── */
+
+.modal-preview {
+  overflow-x: auto;
+  border: 0.1rem solid #383838;
+  border-radius: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.modal-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 1.1rem;
+}
+
+.modal-preview th,
+.modal-preview td {
+  border: 0.1rem solid #383838;
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.modal-preview th {
+  background-color: #2c2c2c;
+  color: rgba(245, 166, 35, 0.85);
+}
+
+/* ── Radios & checkboxes ─────────────────────────────────────────────────── */
+
+.modal-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: center;
+  margin-bottom: 0.8rem;
+  font-size: 1.2rem;
+}
+
+.modal-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.2rem;
+}
+
+.modal-check {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ── Actions ─────────────────────────────────────────────────────────────── */
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1.6rem;
+}
+
+.modal-btn {
+  padding: 0.5rem 1.4rem;
+  font-family: inherit;
+  font-size: 1.2rem;
+  border: 0.1rem solid #555;
+  border-radius: 0.3rem;
+  background-color: #2c2c2c;
+  color: #ddd;
+  cursor: pointer;
+}
+
+.modal-btn:hover {
+  background-color: #383838;
+}
+
+.modal-btn-primary {
+  background-color: rgba(245, 166, 35, 0.85);
+  border-color: rgba(245, 166, 35, 0.9);
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
+.modal-btn-primary:hover {
+  background-color: rgba(245, 166, 35, 1);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

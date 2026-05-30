@@ -2,7 +2,17 @@
 // AppState is Copy (all fields are RwSignal, which is Copy + 'static).
 
 use leptos::prelude::*;
-use crate::logic::{ActivePane, Item, transfer_item};
+use crate::dto::{PendingMapping, Txn};
+use crate::logic::{ActivePane, Item, next_item_id, transfer_item};
+
+/// Render a transaction as a single-line pane label.
+/// Debit shows a leading "-", credit a leading "+".
+fn format_txn(t: &Txn) -> String {
+    let dollars = t.amount_cents / 100;
+    let cents = (t.amount_cents % 100).abs();
+    let sign = if t.direction == "debit" { "-" } else { "+" };
+    format!("{} │ {} │ {}${}.{:02}", t.date, t.vendor, sign, dollars, cents)
+}
 
 // ── Drag types ────────────────────────────────────────────────────────────────
 
@@ -59,6 +69,9 @@ pub struct AppState {
 
     // ── Active drag state ─────────────────────────────────────────────────────
     pub drag:         RwSignal<Option<DragState>>,
+
+    // ── Pending column mapping (Some → modal is open) ─────────────────────────
+    pub pending_mapping: RwSignal<Option<PendingMapping>>,
 }
 
 impl AppState {
@@ -82,7 +95,24 @@ impl AppState {
             bottom_h:     RwSignal::new(200.0),
             debug_h:      RwSignal::new(150.0),
             drag:         RwSignal::new(None),
+            pending_mapping: RwSignal::new(None),
         }
+    }
+
+    /// Replace the Uncategorized pane with parsed transactions, select the
+    /// first row, and activate the pane.
+    pub fn populate_transactions(self, institution: &str, txns: Vec<Txn>) {
+        let count = txns.len();
+        let items: Vec<Item> = txns
+            .iter()
+            .map(|t| Item { id: next_item_id(), label: format_txn(t) })
+            .collect();
+        self.middle_items.set(items);
+        self.middle_sel.set(if count > 0 { Some(0) } else { None });
+        self.active_pane.set(ActivePane::Middle);
+        self.log(format!(
+            "[File] \"{institution}\" → {count} transactions loaded into Uncategorized"
+        ));
     }
 
     pub fn items_for(self, pane: ActivePane) -> RwSignal<Vec<Item>> {

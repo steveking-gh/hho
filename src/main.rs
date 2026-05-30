@@ -1,5 +1,7 @@
 mod app;
 mod components;
+mod dto;
+mod ipc;
 mod logic;
 mod state;
 
