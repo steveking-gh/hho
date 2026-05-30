@@ -3,11 +3,9 @@
 // save_mapping command and populates the Uncategorized pane with the result.
 
 use leptos::prelude::*;
-use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::dto::{InstitutionDto, PendingMapping, SaveMappingArgs, Txn};
-use crate::ipc::invoke;
+use crate::dto::{AmountScheme, Institution, PendingMapping};
 use crate::state::AppState;
 
 /// Split a comma-separated label string into trimmed, non-empty entries.
@@ -76,24 +74,20 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
             .filter_map(|(i, &h)| h.then_some(i))
             .collect();
 
-        // Build the scheme-specific fields.
-        let scheme_val = scheme.get_untracked();
-        let (amount_scheme, debit_neg, type_c, dl, cl) = if scheme_val == "type_column" {
-            (
-                "type_column".to_string(),
-                None,
-                Some(type_col.get_untracked()),
-                Some(split_labels(&debit_labels.get_untracked())),
-                Some(split_labels(&credit_labels.get_untracked())),
-            )
+        // Build the scheme as a typed enum — invalid field combinations are
+        // unrepresentable, and serde produces exactly what the backend expects.
+        let amount = if scheme.get_untracked() == "type_column" {
+            AmountScheme::TypeColumn {
+                amount_col: amount_col.get_untracked(),
+                type_col: type_col.get_untracked(),
+                debit_labels: split_labels(&debit_labels.get_untracked()),
+                credit_labels: split_labels(&credit_labels.get_untracked()),
+            }
         } else {
-            (
-                "single_signed".to_string(),
-                Some(debit_is_negative.get_untracked()),
-                None,
-                None,
-                None,
-            )
+            AmountScheme::SingleSigned {
+                amount_col: amount_col.get_untracked(),
+                debit_is_negative: debit_is_negative.get_untracked(),
+            }
         };
 
         let entered = name.get_untracked();
@@ -103,35 +97,22 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
             entered.trim().to_string()
         };
 
-        let dto = InstitutionDto {
+        let institution = Institution {
             name: inst_name.clone(),
             fingerprint: fingerprint.clone(),
             date_col: date_col.get_untracked(),
             vendor_col: vendor_col.get_untracked(),
             ignore_cols,
-            amount_scheme,
-            amount_col: amount_col.get_untracked(),
-            debit_is_negative: debit_neg,
-            type_col: type_c,
-            debit_labels: dl,
-            credit_labels: cl,
+            amount,
         };
 
-        let args = SaveMappingArgs {
-            institution: dto,
-            pending_path: pending_path.clone(),
-        };
-
+        let path = pending_path.clone();
         state.log(format!("[Mapping] saving \"{inst_name}\" and parsing file…"));
 
         spawn_local(async move {
-            let js = serde_wasm_bindgen::to_value(&args).unwrap_or(JsValue::NULL);
-            match invoke("save_mapping", js).await {
-                Ok(result) => match serde_wasm_bindgen::from_value::<Vec<Txn>>(result) {
-                    Ok(txns) => state.populate_transactions(&inst_name, txns),
-                    Err(e) => state.log(format!("[Mapping] could not parse transactions: {e:?}")),
-                },
-                Err(e) => state.log(format!("[Mapping] save_mapping rejected: {e:?}")),
+            match crate::ipc::save_mapping(institution, path).await {
+                Ok(txns) => state.populate_transactions(&inst_name, txns),
+                Err(e) => state.log(format!("[Mapping] save_mapping failed: {e}")),
             }
             // Always dismiss the modal, even on error, so the UI never gets stuck.
             state.pending_mapping.set(None);

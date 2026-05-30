@@ -1,0 +1,10 @@
+[package]
+name = "hho-types"
+version = "0.1.0"
+edition = "2021"
+description = "Shared IPC types for the hho frontend (WASM) and backend (Tauri)."
+
+# Pure data types only — no chrono/csv/tauri/leptos — so this crate compiles
+# for both the native backend and the wasm32 frontend.
+[dependencies]
+serde = { version = "1", features = ["derive"] }

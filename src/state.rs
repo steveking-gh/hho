@@ -2,15 +2,18 @@
 // AppState is Copy (all fields are RwSignal, which is Copy + 'static).
 
 use leptos::prelude::*;
-use crate::dto::{PendingMapping, Txn};
+use crate::dto::{Direction, PendingMapping, Transaction};
 use crate::logic::{ActivePane, Item, next_item_id, transfer_item};
 
 /// Render a transaction as a single-line pane label.
 /// Debit shows a leading "-", credit a leading "+".
-fn format_txn(t: &Txn) -> String {
+fn format_txn(t: &Transaction) -> String {
     let dollars = t.amount_cents / 100;
     let cents = (t.amount_cents % 100).abs();
-    let sign = if t.direction == "debit" { "-" } else { "+" };
+    let sign = match t.direction {
+        Direction::Debit => "-",
+        Direction::Credit => "+",
+    };
     format!("{} │ {} │ {}${}.{:02}", t.date, t.vendor, sign, dollars, cents)
 }
 
@@ -101,7 +104,7 @@ impl AppState {
 
     /// Replace the Uncategorized pane with parsed transactions, select the
     /// first row, and activate the pane.
-    pub fn populate_transactions(self, institution: &str, txns: Vec<Txn>) {
+    pub fn populate_transactions(self, institution: &str, txns: Vec<Transaction>) {
         let count = txns.len();
         let items: Vec<Item> = txns
             .iter()

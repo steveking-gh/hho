@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::dto::{OpenResult, PendingMapping};
-use crate::ipc::{invoke, listen};
+use crate::ipc::{self, listen};
 use crate::logic::{ActivePane, nav_up, nav_down, pane_left, pane_right};
 use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 use crate::components::{
@@ -28,35 +28,8 @@ const SCALE_DEFAULT: f32 = 10.0;
 // Minimum interval between window-size saves (ms) — simple rate-limiter.
 const WIN_SAVE_INTERVAL_MS: f64 = 500.0;
 
-// ── IPC arg / result types ────────────────────────────────────────────────────
-
-// Tauri v2 matches command arguments by camelCase keys; multi-word argument
-// names must serialize accordingly (e.g. left_width → leftWidth).
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OpenCsvArgs { path: String }
-
-#[derive(serde::Deserialize)]
-struct LayoutConfig {
-    left_width:  f32,
-    right_width: f32,
-    bottom_h:    f32,
-    debug_h:     f32,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SaveLayoutArgs {
-    left_width:  f32,
-    right_width: f32,
-    bottom_h:    f32,
-    debug_h:     f32,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SaveWindowSizeArgs { width: f64, height: f64 }
+// IPC argument/result types live in the shared hho-types crate and are used
+// through the typed wrappers in `crate::ipc`.
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
@@ -94,14 +67,14 @@ fn set_drag_cursor(cursor: &str) {
 
 /// Apply the backend's open result: render transactions, open the mapping
 /// modal, or log a cancellation.
-fn handle_open_result(state: AppState, value: JsValue) {
-    match serde_wasm_bindgen::from_value::<OpenResult>(value) {
-        Ok(OpenResult::Mapped { institution, transactions }) => {
+fn handle_open_result(state: AppState, result: OpenResult) {
+    match result {
+        OpenResult::Mapped { institution, transactions } => {
             state.populate_transactions(&institution, transactions);
         }
-        Ok(OpenResult::NeedsMapping {
+        OpenResult::NeedsMapping {
             fingerprint, headers, sample_rows, pending_path, suggested,
-        }) => {
+        } => {
             state.log(format!(
                 "[File] unknown institution (fingerprint=\"{fingerprint}\") → opening mapping modal"
             ));
@@ -109,8 +82,7 @@ fn handle_open_result(state: AppState, value: JsValue) {
                 fingerprint, headers, sample_rows, pending_path, suggested,
             }));
         }
-        Ok(OpenResult::Cancelled) => state.log("[File] open cancelled".to_string()),
-        Err(e) => state.log(format!("[File] failed to parse open result: {e:?}")),
+        OpenResult::Cancelled => state.log("[File] open cancelled".to_string()),
     }
 }
 
@@ -129,9 +101,9 @@ fn setup_menu_listener(state: AppState) {
             "open" => {
                 spawn_local(async move {
                     state.log("[Event] invoking pick_csv".to_string());
-                    match invoke("pick_csv", JsValue::NULL).await {
-                        Ok(v)  => handle_open_result(state, v),
-                        Err(e) => state.log(format!("[File] pick_csv failed: {e:?}")),
+                    match ipc::pick_csv().await {
+                        Ok(r)  => handle_open_result(state, r),
+                        Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
                     }
                 });
             }
@@ -144,11 +116,9 @@ fn setup_menu_listener(state: AppState) {
                 }
                 state.log(format!("[Event] invoking open_csv path=\"{path}\""));
                 spawn_local(async move {
-                    let args = serde_wasm_bindgen::to_value(&OpenCsvArgs { path })
-                        .unwrap_or(JsValue::NULL);
-                    match invoke("open_csv", args).await {
-                        Ok(v)  => handle_open_result(state, v),
-                        Err(e) => state.log(format!("[File] open_csv failed: {e:?}")),
+                    match ipc::open_csv(path).await {
+                        Ok(r)  => handle_open_result(state, r),
+                        Err(e) => state.log(format!("[File] open_csv failed: {e}")),
                     }
                 });
             }
@@ -166,8 +136,7 @@ fn setup_menu_listener(state: AppState) {
 
 fn load_layout_from_config(state: AppState) {
     spawn_local(async move {
-        let Ok(result) = invoke("get_layout", JsValue::NULL).await else { return };
-        if let Ok(layout) = serde_wasm_bindgen::from_value::<LayoutConfig>(result) {
+        if let Ok(layout) = ipc::get_layout().await {
             state.left_width.set(layout.left_width);
             state.right_width.set(layout.right_width);
             state.bottom_h.set(layout.bottom_h);
@@ -240,13 +209,7 @@ pub fn App() -> impl IntoView {
         ));
 
         spawn_local(async move {
-            let args = serde_wasm_bindgen::to_value(&SaveLayoutArgs {
-                left_width:  left_w,
-                right_width: right_w,
-                bottom_h:    bot_h,
-                debug_h:     dbg_h,
-            }).unwrap_or(JsValue::NULL);
-            let _ = invoke("save_layout", args).await; // best-effort persistence
+            ipc::save_layout(left_w, right_w, bot_h, dbg_h).await;
         });
     });
 
@@ -367,10 +330,7 @@ pub fn App() -> impl IntoView {
         state.log(format!("[Window] resize → {width:.0}×{height:.0} (saving…)"));
 
         spawn_local(async move {
-            let args = serde_wasm_bindgen::to_value(
-                &SaveWindowSizeArgs { width, height }
-            ).unwrap_or(JsValue::NULL);
-            let _ = invoke("save_window_size", args).await; // best-effort persistence
+            ipc::save_window_size(width, height).await;
         });
     });
 

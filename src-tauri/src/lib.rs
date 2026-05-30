@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
-use mapping::{Institution, SuggestedMapping, Transaction};
+// IPC payload types are shared with the frontend via the hho-types crate.
+use hho_types::{Institution, LayoutConfig, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -111,35 +112,7 @@ struct ConfigState {
 
 // ── IPC types ─────────────────────────────────────────────────────────────────
 
-/// Outcome of opening a CSV, returned to the frontend.
-/// Mapped     → a saved institution matched; transactions are ready.
-/// NeedsMapping → unknown header; frontend shows the column-chooser modal.
-/// Cancelled  → user dismissed the file dialog.
-#[derive(Serialize)]
-#[serde(tag = "status", rename_all = "kebab-case")]
-enum OpenResult {
-    Mapped {
-        institution: String,
-        transactions: Vec<Transaction>,
-    },
-    NeedsMapping {
-        fingerprint: String,
-        headers: Vec<String>,
-        sample_rows: Vec<Vec<String>>,
-        pending_path: String,
-        suggested: SuggestedMapping,
-    },
-    Cancelled,
-}
-
-/// Layout dimensions sent to the frontend on startup.
-#[derive(Serialize)]
-struct LayoutConfig {
-    left_width:  f32,
-    right_width: f32,
-    bottom_h:    f32,
-    debug_h:     f32,
-}
+// OpenResult and LayoutConfig are defined in hho-types (shared with the frontend).
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(tag = "action", rename_all = "kebab-case")]
@@ -513,13 +486,13 @@ mod tests {
             debug_h:         None,
             window_width:    None,
             window_height:   None,
-            institutions:    vec![mapping::Institution {
+            institutions:    vec![hho_types::Institution {
                 name: "Chase".into(),
                 fingerprint: "date,description,amount".into(),
                 date_col: 0,
                 vendor_col: 1,
                 ignore_cols: vec![],
-                amount: mapping::AmountScheme::SingleSigned {
+                amount: hho_types::AmountScheme::SingleSigned {
                     amount_col: 2,
                     debit_is_negative: true,
                 },
