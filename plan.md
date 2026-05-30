@@ -179,7 +179,7 @@ styles.css         ← complete rewrite for new layout
 | C  | Post-move focus       | **Stay in source pane**                           |
 | D  | Bottom pane layout    | **Single flat list**                              |
 | E  | Active pane indicator | **Slightly lighter background** on active pane    |
-| F  | Pane headers          | **Yes** — Joint / Uncategorized / Mine / Ignored  |
+| F  | Pane headers          | **Yes** — Joint / Unassigned / Mine / Ignored  |
 
 ---
 
@@ -205,9 +205,9 @@ it in `hho_user_config.toml`.
 read header row
   → fingerprint = headers.map(trim+lowercase).join(",")
   → look up fingerprint among saved institutions
-      ├── found    → parse each row → Vec<Transaction> → Uncategorized pane
+      ├── found    → parse each row → Vec<Transaction> → Unassigned pane
       └── not found → emit NeedsMapping → frontend shows modal
-                       → user maps → save_mapping → parse → Uncategorized pane
+                       → user maps → save_mapping → parse → Unassigned pane
 ```
 
 ### Data Model (backend `src-tauri/src/mapping.rs`)

@@ -1,6 +1,6 @@
 // Column-chooser modal, shown when an unknown CSV header is opened.
 // Local signals hold the in-progress mapping; Save & Apply persists it via the
-// save_mapping command and populates the Uncategorized pane with the result.
+// save_mapping command and populates the Unassigned pane with the result.
 
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;

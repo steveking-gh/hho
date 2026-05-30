@@ -345,7 +345,7 @@ pub fn App() -> impl IntoView {
                 <div class="top-section">
                     <Pane title="Joint"         pane_id=ActivePane::Left />
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::LeftHandle />
-                    <Pane title="Uncategorized" pane_id=ActivePane::Middle />
+                    <Pane title="Unassigned" pane_id=ActivePane::Middle />
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::RightHandle />
                     <Pane title="Mine"          pane_id=ActivePane::Right />
                 </div>

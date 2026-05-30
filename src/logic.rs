@@ -14,7 +14,7 @@ impl std::fmt::Display for ActivePane {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Left   => write!(f, "Joint"),
-            Self::Middle => write!(f, "Uncategorized"),
+            Self::Middle => write!(f, "Unassigned"),
             Self::Right  => write!(f, "Mine"),
             Self::Bottom => write!(f, "Ignored"),
         }
