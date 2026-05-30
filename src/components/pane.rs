@@ -100,6 +100,7 @@ pub fn Pane(
                                     node_ref=el_ref
                                     class="row-item"
                                     class:selected=is_selected
+                                    class:credit=move || item.direction == hho_types::Direction::Credit
                                     on:click=move |e| {
                                         e.stop_propagation();
                                         let was_pane = state.active_pane.get_untracked();

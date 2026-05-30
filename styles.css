@@ -164,6 +164,14 @@ body {
   color: #e8e8e8;
 }
 
+.row-item.credit {
+  color: #4ec94e;
+}
+
+.row-item.credit.selected {
+  color: #6eff6e;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Debug log panel
    Height set via inline style from debug_h signal; CSS keeps everything else.
