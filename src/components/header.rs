@@ -38,12 +38,17 @@ pub fn Header() -> impl IntoView {
 
     // Handles CSV file pick action.
     let on_open = move |_| {
+        if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
+        state.is_loading_file.set(true);
         state.log("[Header] Open CSV clicked".to_string());
         spawn_local(async move {
             match crate::ipc::pick_csv().await {
                 Ok(r)  => handle_open_result(state, r),
                 Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
             }
+            state.is_loading_file.set(false);
         });
     };
 
@@ -57,12 +62,18 @@ pub fn Header() -> impl IntoView {
 
     // Toggles dropdown visibility state.
     let toggle_dropdown = move |e: web_sys::MouseEvent| {
+        if state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
         e.stop_propagation();
         is_dropdown_open.update(|v| *v = !*v);
     };
 
     // Month / Year button to open period selection modal.
     let on_toggle_month = move |_| {
+        if state.pending_mapping.get_untracked().is_some() {
+            return;
+        }
         state.is_month_modal_open.set(true);
     };
 
@@ -100,6 +111,10 @@ pub fn Header() -> impl IntoView {
                                     recents.into_iter().map(|path| {
                                         let path_clone = path.clone();
                                         let on_recent_click = move |_| {
+                                            if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+                                                return;
+                                            }
+                                            state.is_loading_file.set(true);
                                             state.log(format!("[Header] Opening recent file: {path_clone}"));
                                             let p = path_clone.clone();
                                             spawn_local(async move {
@@ -107,6 +122,7 @@ pub fn Header() -> impl IntoView {
                                                     Ok(r)  => handle_open_result(state, r),
                                                     Err(e) => state.log(format!("[File] open_csv failed: {e}")),
                                                 }
+                                                state.is_loading_file.set(false);
                                             });
                                         };
                                         view! {

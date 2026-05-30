@@ -85,6 +85,9 @@ pub struct AppState {
     pub raw_transactions: RwSignal<Vec<Transaction>>,
     pub current_institution: RwSignal<Option<String>>,
     pub is_month_modal_open: RwSignal<bool>,
+
+    // ── Async operations guard ────────────────────────────────────────────────
+    pub is_loading_file: RwSignal<bool>,
 }
 
 impl AppState {
@@ -115,6 +118,7 @@ impl AppState {
             raw_transactions: RwSignal::new(vec![]),
             current_institution: RwSignal::new(None),
             is_month_modal_open: RwSignal::new(false),
+            is_loading_file: RwSignal::new(false),
         };
         // Sets default month and year to previous calendar month from current date.
         let now = js_sys::Date::new_0();

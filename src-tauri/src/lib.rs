@@ -198,7 +198,7 @@ fn finalize_open(
 
 #[tauri::command]
 async fn pick_csv(
-    app:   AppHandle,
+    window: tauri::Window,
     state: State<'_, ConfigState>,
 ) -> Result<OpenResult, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -212,7 +212,11 @@ async fn pick_csv(
             .or_else(dirs::home_dir)
     };
 
-    let mut builder = app.dialog().file().add_filter("CSV files", &["csv", "CSV"]);
+    // Associates file dialog with calling window as parent owner.
+    // Prevents duplicate dialog instances and keeps dialog in focus.
+    let mut builder = window.dialog().file()
+        .set_parent(&window)
+        .add_filter("CSV files", &["csv", "CSV"]);
     if let Some(dir) = start_dir {
         builder = builder.set_directory(dir);
     }
@@ -312,10 +316,17 @@ fn get_recent_files(state: State<'_, ConfigState>) -> Vec<String> {
     cfg.recent_files.clone()
 }
 
-/// Exits the application cleanly.
+/// Exits the application cleanly by closing all open windows.
+/// Posts window closure to main thread event loop.
+/// Prevents webview destruction while IPC handler is active.
 #[tauri::command]
 fn exit_app(app: AppHandle) {
-    app.exit(0);
+    let app_clone = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        for window in app_clone.webview_windows().values() {
+            let _ = window.close();
+        }
+    });
 }
 
 // ── App entry point ───────────────────────────────────────────────────────────

@@ -198,12 +198,17 @@ pub fn App() -> impl IntoView {
         if ctrl && (key.eq_ignore_ascii_case("o") || key.eq_ignore_ascii_case("q")) {
             ev.prevent_default();
             if key.eq_ignore_ascii_case("o") {
+                if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+                    return;
+                }
+                state.is_loading_file.set(true);
                 state.log("[Shortcut] Ctrl+O → invoking pick_csv".to_string());
                 spawn_local(async move {
                     match ipc::pick_csv().await {
                         Ok(r)  => handle_open_result(state, r),
                         Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
                     }
+                    state.is_loading_file.set(false);
                 });
             } else {
                 state.log("[Shortcut] Ctrl+Q → exiting app".to_string());
