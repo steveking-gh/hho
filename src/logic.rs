@@ -24,8 +24,22 @@ impl std::fmt::Display for ActivePane {
 /// A single row entry displayed inside a pane.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
-    pub id:    u32,
-    pub label: String,
+    pub id:           u32,
+    pub label:        String,
+    pub amount_cents: i64,
+    pub direction:    hho_types::Direction,
+}
+
+/// Calculates the net total sum of pane items in cents.
+/// Sums credit amounts as positive values and debit amounts as negative values.
+pub fn calculate_total_cents(items: &[Item]) -> i64 {
+    items
+        .iter()
+        .map(|item| match item.direction {
+            hho_types::Direction::Credit => item.amount_cents,
+            hho_types::Direction::Debit => -item.amount_cents,
+        })
+        .sum()
 }
 
 // ── Row navigation ───────────────────────────────────────────────────────────
@@ -148,7 +162,12 @@ mod tests {
         labels
             .iter()
             .enumerate()
-            .map(|(i, l)| Item { id: i as u32, label: l.to_string() })
+            .map(|(i, l)| Item {
+                id: i as u32,
+                label: l.to_string(),
+                amount_cents: 0,
+                direction: hho_types::Direction::Debit,
+            })
             .collect()
     }
 
@@ -321,5 +340,24 @@ mod tests {
     fn get_previous_month_year_calculates_correct_periods() {
         assert_eq!(get_previous_month_year(2026, 5), (2026, 4));
         assert_eq!(get_previous_month_year(2026, 1), (2025, 12));
+    }
+
+    #[test]
+    fn calculate_total_cents_sums_credits_and_debits() {
+        let items = vec![
+            Item {
+                id: 1,
+                label: "a".to_string(),
+                amount_cents: 1000,
+                direction: hho_types::Direction::Credit,
+            },
+            Item {
+                id: 2,
+                label: "b".to_string(),
+                amount_cents: 250,
+                direction: hho_types::Direction::Debit,
+            },
+        ];
+        assert_eq!(calculate_total_cents(&items), 750);
     }
 }

@@ -220,7 +220,12 @@ impl AppState {
         let count = filtered.len();
         let items: Vec<Item> = filtered
             .iter()
-            .map(|t| Item { id: next_item_id(), label: format_txn(t) })
+            .map(|t| Item {
+                id: next_item_id(),
+                label: format_txn(t),
+                amount_cents: t.amount_cents,
+                direction: t.direction,
+            })
             .collect();
         
         self.middle_items.set(items);

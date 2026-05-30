@@ -55,7 +55,18 @@ pub fn Pane(
                 ));
             }
         >
-            <div class="pane-header">{title}</div>
+            <div class="pane-header">
+                {move || {
+                    let items = items_sig.get();
+                    // Sums all transaction amounts, treating debits as negative and credits as positive.
+                    let total_cents = crate::logic::calculate_total_cents(&items);
+                    let abs_cents = total_cents.abs();
+                    let dollars = abs_cents / 100;
+                    let cents = abs_cents % 100;
+                    let sign = if total_cents < 0 { "-" } else { "" };
+                    format!("{}:  {}${}.{:02}", title, sign, dollars, cents)
+                }}
+            </div>
             <div class="pane-rows">
                 {move || {
                     let items = items_sig.get();
