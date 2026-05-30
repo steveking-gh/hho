@@ -1,0 +1,26 @@
+src/components/rule_editor_modal.rs
+  h_5b3f31968f5853 71,86,157
+src/logic.rs
+  h_5b3f31968f5853 18
+src/state.rs
+  h_5b3f31968f5853 26,69
+plan.md
+  h_5b3f31968f5853 182
+src/components/rules_modal.rs
+  h_5b3f31968f5853 27,31,104,111,121,155,210,213
+src-tauri/src/lib.rs
+  h_5b3f31968f5853 49
+src/app.rs
+  h_5b3f31968f5853 325,396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "012d4b5d3b88203045b1da4f579a1d7ed1c027e8",
+  "prompts": {},
+  "humans": {
+    "h_5b3f31968f5853": {
+      "author": "Steve King <12994437+steveking-gh@users.noreply.github.com>"
+    }
+  }
+}
