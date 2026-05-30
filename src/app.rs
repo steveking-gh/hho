@@ -8,11 +8,12 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::dto::{OpenResult, PendingMapping};
-use crate::ipc::{self, listen};
+use crate::ipc;
 use crate::logic::{ActivePane, nav_up, nav_down, pane_left, pane_right};
 use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 use crate::components::{
     debug_log::DebugLog,
+    header::Header,
     mapping_modal::MappingModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
@@ -67,7 +68,7 @@ fn set_drag_cursor(cursor: &str) {
 
 /// Apply the backend's open result: render transactions, open the mapping
 /// modal, or log a cancellation.
-fn handle_open_result(state: AppState, result: OpenResult) {
+pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
     match result {
         OpenResult::Mapped { institution, transactions } => {
             state.populate_transactions(&institution, transactions);
@@ -86,51 +87,7 @@ fn handle_open_result(state: AppState, result: OpenResult) {
     }
 }
 
-// ── Tauri menu listener ───────────────────────────────────────────────────────
 
-fn setup_menu_listener(state: AppState) {
-    let handler = Closure::wrap(Box::new(move |event: JsValue| {
-        let payload = js_sys::Reflect::get(&event, &JsValue::from_str("payload"))
-            .unwrap_or(JsValue::NULL);
-        let action = js_sys::Reflect::get(&payload, &JsValue::from_str("action"))
-            .ok().and_then(|v| v.as_string()).unwrap_or_default();
-
-        state.log(format!("[Event] hho-menu action=\"{}\"", action));
-
-        match action.as_str() {
-            "open" => {
-                spawn_local(async move {
-                    state.log("[Event] invoking pick_csv".to_string());
-                    match ipc::pick_csv().await {
-                        Ok(r)  => handle_open_result(state, r),
-                        Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
-                    }
-                });
-            }
-            "open-recent" => {
-                let path = js_sys::Reflect::get(&payload, &JsValue::from_str("path"))
-                    .ok().and_then(|v| v.as_string()).unwrap_or_default();
-                if path.is_empty() {
-                    state.log("[Event] open-recent: missing path".to_string());
-                    return;
-                }
-                state.log(format!("[Event] invoking open_csv path=\"{path}\""));
-                spawn_local(async move {
-                    match ipc::open_csv(path).await {
-                        Ok(r)  => handle_open_result(state, r),
-                        Err(e) => state.log(format!("[File] open_csv failed: {e}")),
-                    }
-                });
-            }
-            other => state.log(format!("[Event] hho-menu: unknown action \"{other}\"")),
-        }
-    }) as Box<dyn FnMut(JsValue)>);
-
-    spawn_local(async move {
-        let _ = listen("hho-menu", handler.as_ref().unchecked_ref()).await;
-        handler.forget();
-    });
-}
 
 // ── Layout restore ────────────────────────────────────────────────────────────
 
@@ -156,7 +113,7 @@ pub fn App() -> impl IntoView {
     let state = AppState::new();
     provide_context(state);
 
-    setup_menu_listener(state);
+    state.refresh_recent_files();
     load_layout_from_config(state);
 
     // ── Global mouse-move handler (drag-resize) ───────────────────────────────
@@ -233,6 +190,26 @@ pub fn App() -> impl IntoView {
             state.log(format!(
                 "[KeyDown] Ctrl+{key}  →  {action} | scale={new_scale:.1}px/rem"
             ));
+            return;
+        }
+
+        // ── Keyboard shortcuts ────────────────────────────────────────────────
+        if ctrl && (key.eq_ignore_ascii_case("o") || key.eq_ignore_ascii_case("q")) {
+            ev.prevent_default();
+            if key.eq_ignore_ascii_case("o") {
+                state.log("[Shortcut] Ctrl+O → invoking pick_csv".to_string());
+                spawn_local(async move {
+                    match ipc::pick_csv().await {
+                        Ok(r)  => handle_open_result(state, r),
+                        Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
+                    }
+                });
+            } else {
+                state.log("[Shortcut] Ctrl+Q → exiting app".to_string());
+                spawn_local(async move {
+                    ipc::exit_app().await;
+                });
+            }
             return;
         }
 
@@ -357,6 +334,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <div class="app-container">
+            <Header />
             <div class="main-area">
                 <div class="top-section">
                     <Pane title="Joint"         pane_id=ActivePane::Left />

@@ -80,3 +80,13 @@ pub async fn save_window_size(width: f64, height: f64) {
     let args = SaveWindowSizeArgs { width, height };
     let _ = invoke_raw("save_window_size", to_args(&args)).await;
 }
+
+/// Fetches the recent CSV file paths.
+pub async fn get_recent_files() -> Result<Vec<String>, String> {
+    call_unit("get_recent_files").await
+}
+
+/// Closes the application cleanly.
+pub async fn exit_app() {
+    let _ = invoke_raw("exit_app", JsValue::NULL).await;
+}

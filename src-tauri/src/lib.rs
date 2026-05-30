@@ -8,8 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, State};
-use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Manager, State};
 
 // IPC payload types are shared with the frontend via the hho-types crate.
 use hho_types::{Institution, LayoutConfig, OpenResult, Transaction};
@@ -18,7 +17,6 @@ use hho_types::{Institution, LayoutConfig, OpenResult, Transaction};
 
 const MAX_RECENTS:    usize = 5;
 const CONFIG_FILE:    &str  = "hho_user_config.toml";
-const MENU_EVENT:     &str  = "hho-menu";
 
 // Default layout dimensions (px, logical).
 const DEFAULT_LEFT_W:  f32 = 200.0;
@@ -114,12 +112,7 @@ struct ConfigState {
 
 // OpenResult and LayoutConfig are defined in hho-types (shared with the frontend).
 
-#[derive(Serialize, Clone, Debug)]
-#[serde(tag = "action", rename_all = "kebab-case")]
-enum MenuAction {
-    Open,
-    OpenRecent { path: String },
-}
+
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -157,45 +150,12 @@ pub fn push_recent(files: &mut Vec<String>, new_path: String) {
     files.truncate(MAX_RECENTS);
 }
 
-// ── Menu builder ──────────────────────────────────────────────────────────────
-
-fn build_menu(app: &AppHandle, recents: &[String]) -> tauri::Result<Menu<tauri::Wry>> {
-    let open = MenuItem::with_id(app, "open", "Open...", true, Some("CmdOrCtrl+O"))?;
-    let sep  = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit",    true, Some("CmdOrCtrl+Q"))?;
-    let sub  = build_recent_submenu(app, recents)?;
-    let file = Submenu::with_items(
-        app, "File", true,
-        &[&open, &sep, &sub, &PredefinedMenuItem::separator(app)?, &quit],
-    )?;
-    Menu::with_items(app, &[&file])
-}
-
-fn build_recent_submenu(
-    app:     &AppHandle,
-    recents: &[String],
-) -> tauri::Result<Submenu<tauri::Wry>> {
-    if recents.is_empty() {
-        let none = MenuItem::with_id(app, "no-recents", "No Recent Files", false, None::<&str>)?;
-        return Submenu::with_items(app, "Open Recent", true, &[&none]);
-    }
-    let items: Vec<MenuItem<tauri::Wry>> = recents.iter().enumerate()
-        .filter_map(|(i, p)| {
-            let name = Path::new(p).file_name()?.to_string_lossy().into_owned();
-            MenuItem::with_id(app, format!("recent-{i}"), name, true, None::<&str>).ok()
-        })
-        .collect();
-    let refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
-        items.iter().map(|m| m as &dyn IsMenuItem<tauri::Wry>).collect();
-    Submenu::with_items(app, "Open Recent", true, refs.as_slice())
-}
 
 // ── Shared open logic ─────────────────────────────────────────────────────────
 
 /// Read the CSV, record it in recents, rebuild the menu, then either parse it
 /// with a saved institution (Mapped) or request a new mapping (NeedsMapping).
 fn finalize_open(
-    app:   &AppHandle,
     state: &ConfigState,
     path:  PathBuf,
 ) -> Result<OpenResult, String> {
@@ -209,8 +169,7 @@ fn finalize_open(
     cfg.last_opened_dir = dir_str;
     save_config(&cfg);
 
-    let menu = build_menu(app, &cfg.recent_files).map_err(|e| e.to_string())?;
-    app.set_menu(menu).map_err(|e| e.to_string())?;
+
 
     // Known institution → parse rows; unknown → ask the frontend for a mapping.
     let result = match mapping::find_institution(&fp, &cfg.institutions) {
@@ -264,18 +223,18 @@ async fn pick_csv(
     let path = fp.as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
-    finalize_open(&app, &state, path)
+    finalize_open(&state, path)
 }
 
 #[tauri::command]
 async fn open_csv(
     path:  String,
-    app:   AppHandle,
+    _app:  AppHandle,
     state: State<'_, ConfigState>,
 ) -> Result<OpenResult, String> {
     let pb = PathBuf::from(&path);
     if !pb.exists() { return Err(format!("file not found: {path}")); }
-    finalize_open(&app, &state, pb)
+    finalize_open(&state, pb)
 }
 
 /// Persist a user-defined column mapping, then parse the pending file with it.
@@ -346,6 +305,19 @@ fn save_window_size(
     save_config(&cfg);
 }
 
+/// Returns the current MRU list of recent files.
+#[tauri::command]
+fn get_recent_files(state: State<'_, ConfigState>) -> Vec<String> {
+    let cfg = state.config.lock().unwrap();
+    cfg.recent_files.clone()
+}
+
+/// Exits the application cleanly.
+#[tauri::command]
+fn exit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 // ── App entry point ───────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -363,36 +335,13 @@ pub fn run() {
                 let _ = win.set_size(tauri::LogicalSize::new(win_w, win_h));
             }
 
-            let menu = build_menu(app.handle(), &cfg.recent_files)?;
-            app.set_menu(menu)?;
             app.manage(ConfigState { config: Mutex::new(cfg) });
-
-            let handle = app.handle().clone();
-            app.on_menu_event(move |_app, event| {
-                let id = event.id().as_ref();
-                match id {
-                    "open" => { let _ = handle.emit(MENU_EVENT, MenuAction::Open); }
-                    "quit" => handle.exit(0),
-                    id if id.starts_with("recent-") => {
-                        if let Ok(idx) = id["recent-".len()..].parse::<usize>() {
-                            let state = handle.state::<ConfigState>();
-                            let cfg   = state.config.lock().unwrap();
-                            if let Some(path) = cfg.recent_files.get(idx) {
-                                let _ = handle.emit(
-                                    MENU_EVENT,
-                                    MenuAction::OpenRecent { path: path.clone() },
-                                );
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             pick_csv, open_csv, save_mapping,
             get_layout, save_layout, save_window_size,
+            get_recent_files, exit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -75,6 +75,9 @@ pub struct AppState {
 
     // ── Pending column mapping (Some → modal is open) ─────────────────────────
     pub pending_mapping: RwSignal<Option<PendingMapping>>,
+
+    // ── Recent files ──────────────────────────────────────────────────────────
+    pub recent_files: RwSignal<Vec<String>>,
 }
 
 impl AppState {
@@ -99,6 +102,7 @@ impl AppState {
             debug_h:      RwSignal::new(150.0),
             drag:         RwSignal::new(None),
             pending_mapping: RwSignal::new(None),
+            recent_files: RwSignal::new(vec![]),
         }
     }
 
@@ -116,6 +120,7 @@ impl AppState {
         self.log(format!(
             "[File] \"{institution}\" → {count} transactions loaded into Uncategorized"
         ));
+        self.refresh_recent_files();
     }
 
     pub fn items_for(self, pane: ActivePane) -> RwSignal<Vec<Item>> {
@@ -143,6 +148,17 @@ impl AppState {
         self.debug_log.update(|log| {
             log.insert(0, msg);
             if log.len() > 500 { log.truncate(500); }
+        });
+    }
+
+    /// Fetches the latest list of recent files from the backend config.
+    pub fn refresh_recent_files(self) {
+        use wasm_bindgen_futures::spawn_local;
+        spawn_local(async move {
+            match crate::ipc::get_recent_files().await {
+                Ok(files) => self.recent_files.set(files),
+                Err(e) => self.log(format!("[File] failed to get recent files: {e}")),
+            }
         });
     }
 

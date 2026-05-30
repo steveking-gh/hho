@@ -380,3 +380,115 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #505050;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Header Bar & Toolbar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.8rem 1.6rem;
+  background-color: #161616;
+  border-bottom: 0.1rem solid rgba(245, 166, 35, 0.30);
+  user-select: none;
+}
+
+.header-branding {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.2rem;
+  color: rgb(245, 165, 35);
+  text-transform: uppercase;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1.2rem;
+  background-color: #262626;
+  border: 0.1rem solid #3a3a3a;
+  border-radius: 0.4rem;
+  color: #d8d8d8;
+  font-family: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background-color 80ms ease, border-color 80ms ease;
+}
+
+.header-btn:hover {
+  background-color: #363636;
+  border-color: #555;
+  color: #ffffff;
+}
+
+.header-btn-danger:hover {
+  background-color: #8b2525;
+  border-color: #a83232;
+  color: #ffffff;
+}
+
+.btn-icon {
+  font-size: 1.4rem;
+}
+
+/* ── Recent Files Dropdown ───────────────────────────────────────────────── */
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 22rem;
+  max-width: 40rem;
+  padding: 0.5rem 0;
+  background-color: #222222;
+  border: 0.1rem solid #3a3a3a;
+  border-radius: 0.4rem;
+  box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.5);
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.8rem 1.6rem;
+  background: none;
+  border: none;
+  color: #cccccc;
+  font-family: inherit;
+  font-size: 1.2rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 80ms ease, color 80ms ease;
+}
+
+.dropdown-item:hover {
+  background-color: rgba(245, 166, 35, 0.15);
+  color: #ffffff;
+}
+
+.dropdown-empty {
+  padding: 0.8rem 1.6rem;
+  color: #666666;
+  font-style: italic;
+  font-size: 1.2rem;
+}
