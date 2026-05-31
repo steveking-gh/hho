@@ -134,24 +134,45 @@ fn find_col(headers: &[String], keywords: &[&str]) -> Option<usize> {
     })
 }
 
+/// Find the first header index matching any of the given names exactly (case-insensitively).
+fn find_exact_match(headers: &[String], names: &[&str]) -> Option<usize> {
+    headers.iter().position(|h| {
+        let trimmed = h.trim();
+        names.iter().any(|&name| trimmed.eq_ignore_ascii_case(name))
+    })
+}
+
 /// Produce an initial mapping guess from header names.
 /// Defaults to the SingleSigned scheme (most common for card statements);
 /// the modal lets the user correct any field.
 pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
-    let date_col = find_col(headers, &["transaction date", "trans date"])
+    let date_col = find_exact_match(headers, &["date", "transaction date", "trans date"])
+        .or_else(|| find_col(headers, &["transaction date", "trans date"]))
         .or_else(|| find_col(headers, &["date"]))
         .unwrap_or(0);
 
-    let vendor_col = find_col(
+    let vendor_col = find_exact_match(
         headers,
-        &["description", "payee", "merchant", "vendor", "name"],
+        &["vendor", "vendor name", "description", "payee", "merchant", "name"],
     )
+    .or_else(|| {
+        find_col(
+            headers,
+            &["description", "payee", "merchant", "vendor", "name"],
+        )
+    })
     .or_else(|| find_col(headers, &["memo"]))
     .unwrap_or(0);
 
-    let amount_col = find_col(headers, &["amount", "amt"]).unwrap_or(0);
-    let type_col = find_col(headers, &["type"]);
-    let category_col = find_col(headers, &["category"]);
+    let amount_col = find_exact_match(headers, &["amount", "amt"])
+        .or_else(|| find_col(headers, &["amount", "amt"]))
+        .unwrap_or(0);
+
+    let type_col = find_exact_match(headers, &["type"])
+        .or_else(|| find_col(headers, &["type"]));
+
+    let category_col = find_exact_match(headers, &["category"])
+        .or_else(|| find_col(headers, &["category"]));
 
     // Hide every column not used as date, vendor, amount, or category by default.
     let ignore_cols = (0..headers.len())
@@ -329,6 +350,35 @@ mod tests {
         assert_eq!(s.type_col, Some(4));
         assert_eq!(s.category_col, Some(3));
         assert_eq!(s.ignore_cols, vec![1, 4, 6]);
+    }
+
+    #[test]
+    fn suggest_mapping_prioritizes_exact_match_over_substring() {
+        // Prioritize exact column name match over substring keywords.
+        let h = row(&[
+            "Gross Amount",
+            "Post Date",
+            "Cardholder Name",
+            "Date",
+            "Vendor",
+            "Amount",
+        ]);
+        let s = suggest_mapping(&h);
+        assert_eq!(s.date_col, 3);
+        assert_eq!(s.vendor_col, 4);
+        assert_eq!(s.amount_col, 5);
+    }
+
+    #[test]
+    fn test_unrecognized_header_suggest_mapping() {
+        let header_str = "Transaction Date,Post Date,Description,Category,Type,Amount,Memo";
+        let headers: Vec<String> = header_str.split(',').map(|s| s.to_string()).collect();
+        let s = suggest_mapping(&headers);
+        assert_eq!(s.date_col, 0); // "Transaction Date"
+        assert_eq!(s.vendor_col, 2); // "Description"
+        assert_eq!(s.amount_col, 5); // "Amount"
+        assert_eq!(s.category_col, Some(3)); // "Category"
+        assert_eq!(s.type_col, Some(4)); // "Type"
     }
 
     // ── Serialization round-trips (the cross-crate / persistence contract) ──────

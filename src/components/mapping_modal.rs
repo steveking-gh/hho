@@ -16,26 +16,53 @@ fn split_labels(s: &str) -> Vec<String> {
         .collect()
 }
 
-/// Build `<option>` entries `"<index>: <header>"` for a column `<select>`.
-fn col_options(headers: &[String]) -> impl IntoView {
-    headers
-        .iter()
-        .enumerate()
-        .map(|(i, h)| view! { <option value=i.to_string()>{format!("{i}: {h}")}</option> })
-        .collect_view()
+#[component]
+fn ColumnSelect(label: &'static str, headers: Vec<String>, value: RwSignal<usize>) -> impl IntoView {
+    view! {
+        <label class="modal-field">
+            <span>{label}</span>
+            <select on:change=move |e| {
+                // Option values are always valid indices so parsing succeeds.
+                value.set(event_target_value(&e).parse().unwrap_or(0));
+            }>
+                {headers.into_iter().enumerate().map(|(i, h)| view! {
+                    <option value=i.to_string() prop:selected=move || value.get() == i>
+                        {format!("{i}: {h}")}
+                    </option>
+                }).collect_view()}
+            </select>
+        </label>
+    }
 }
 
-/// Build dropdown option entries with a 'None' placeholder for the Category selection.
-fn category_col_options(headers: &[String]) -> impl IntoView {
-    let none_opt = view! { <option value="none">"None"</option> };
-    let rest = headers
-        .iter()
-        .enumerate()
-        .map(|(i, h)| view! { <option value=i.to_string()>{format!("{i}: {h}")}</option> })
-        .collect_view();
+#[component]
+fn OptionalColumnSelect(
+    label: &'static str,
+    headers: Vec<String>,
+    value: RwSignal<Option<usize>>,
+) -> impl IntoView {
     view! {
-        {none_opt}
-        {rest}
+        <label class="modal-field">
+            <span>{label}</span>
+            <select
+                on:change=move |e| {
+                    let val = event_target_value(&e);
+                    if val == "none" {
+                        value.set(None);
+                    } else {
+                        // Option values are always valid indices or "none", so parsing succeeds.
+                        value.set(val.parse().ok());
+                    }
+                }
+            >
+                <option value="none" prop:selected=move || value.get().is_none()>"None"</option>
+                {headers.into_iter().enumerate().map(|(i, h)| view! {
+                    <option value=i.to_string() prop:selected=move || value.get() == Some(i)>
+                        {format!("{i}: {h}")}
+                    </option>
+                }).collect_view()}
+            </select>
+        </label>
     }
 }
 
@@ -71,11 +98,6 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
 
     // Owned clones for the various view fragments (avoids borrow gymnastics).
     let headers = pm.headers.clone();
-    let h_date = pm.headers.clone();
-    let h_vendor = pm.headers.clone();
-    let h_category = pm.headers.clone();
-    let h_amount = pm.headers.clone();
-    let h_type = pm.headers.clone();
     let sample_rows = pm.sample_rows.clone();
     let pending_path = pm.pending_path.clone();
     let fingerprint = pm.fingerprint.clone();
@@ -180,42 +202,9 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                 </div>
 
                 // ── Date / Vendor ─────────────────────────────────────────────
-                <label class="modal-field">
-                    <span>"Transaction Date column"</span>
-                    <select
-                        prop:value=move || date_col.get().to_string()
-                        on:change=move |e| date_col.set(event_target_value(&e).parse().unwrap_or(0))
-                    >
-                        {col_options(&h_date)}
-                    </select>
-                </label>
-
-                <label class="modal-field">
-                    <span>"Vendor Name column"</span>
-                    <select
-                        prop:value=move || vendor_col.get().to_string()
-                        on:change=move |e| vendor_col.set(event_target_value(&e).parse().unwrap_or(0))
-                    >
-                        {col_options(&h_vendor)}
-                    </select>
-                </label>
-
-                <label class="modal-field">
-                    <span>"Category column (optional)"</span>
-                    <select
-                        prop:value=move || category_col.get().map(|c| c.to_string()).unwrap_or_else(|| "none".to_string())
-                        on:change=move |e| {
-                            let val = event_target_value(&e);
-                            if val == "none" {
-                                category_col.set(None);
-                            } else {
-                                category_col.set(val.parse().ok());
-                            }
-                        }
-                    >
-                        {category_col_options(&h_category)}
-                    </select>
-                </label>
+                <ColumnSelect label="Transaction Date column" headers=headers.clone() value=date_col />
+                <ColumnSelect label="Vendor Name column" headers=headers.clone() value=vendor_col />
+                <OptionalColumnSelect label="Category column (optional)" headers=headers.clone() value=category_col />
 
                 // ── Amount / direction scheme ─────────────────────────────────
                 <div class="modal-section-label">"Amount / Direction"</div>
@@ -238,15 +227,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                     </label>
                 </div>
 
-                <label class="modal-field">
-                    <span>"Amount column"</span>
-                    <select
-                        prop:value=move || amount_col.get().to_string()
-                        on:change=move |e| amount_col.set(event_target_value(&e).parse().unwrap_or(0))
-                    >
-                        {col_options(&h_amount)}
-                    </select>
-                </label>
+                <ColumnSelect label="Amount column" headers=headers.clone() value=amount_col />
 
                 // Single-signed extra: debit sign convention.
                 {move || (scheme.get() == AmountSchemeTag::SingleSigned).then(|| view! {
@@ -272,18 +253,12 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                 })}
 
                 // Type-column extra: type column + label lists.
-                {move || (scheme.get() == AmountSchemeTag::TypeColumn).then({
-                    let h_type = h_type.clone();
-                    move || view! {
-                        <label class="modal-field">
-                            <span>"Type column"</span>
-                            <select
-                                prop:value=move || type_col.get().to_string()
-                                on:change=move |e| type_col.set(event_target_value(&e).parse().unwrap_or(0))
-                            >
-                                {col_options(&h_type)}
-                            </select>
-                        </label>
+                {
+                    let headers = headers.clone();
+                    move || (scheme.get() == AmountSchemeTag::TypeColumn).then({
+                        let headers = headers.clone();
+                        move || view! {
+                            <ColumnSelect label="Type column" headers=headers.clone() value=type_col />
                         <label class="modal-field">
                             <span>"Debit labels (comma-separated)"</span>
                             <input
