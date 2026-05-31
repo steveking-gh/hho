@@ -3,7 +3,7 @@
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use crate::state::AppState;
-use crate::app::{handle_open_result, get_vendor_for_item};
+use crate::app::handle_open_result;
 use hho_types::Transaction;
 
 /// Extracts filename from path string.
@@ -120,16 +120,7 @@ pub fn Header() -> impl IntoView {
             return;
         }
         let items = state.left_items.get_untracked();
-        let txns: Vec<Transaction> = items
-            .iter()
-            .map(|item| Transaction {
-                date: item.date.clone(),
-                vendor: get_vendor_for_item(state, item),
-                category: item.category.clone(),
-                amount_cents: item.amount_cents,
-                direction: item.direction,
-            })
-            .collect();
+        let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
         let month = state.selected_month.get_untracked();
         let year = state.selected_year.get_untracked();
         let month_name = get_month_name(month).to_string();
@@ -148,16 +139,7 @@ pub fn Header() -> impl IntoView {
             return;
         }
         let items = state.right_items.get_untracked();
-        let txns: Vec<Transaction> = items
-            .iter()
-            .map(|item| Transaction {
-                date: item.date.clone(),
-                vendor: get_vendor_for_item(state, item),
-                category: item.category.clone(),
-                amount_cents: item.amount_cents,
-                direction: item.direction,
-            })
-            .collect();
+        let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
         let month = state.selected_month.get_untracked();
         let year = state.selected_year.get_untracked();
         let month_name = get_month_name(month).to_string();

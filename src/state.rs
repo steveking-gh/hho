@@ -2,19 +2,14 @@
 // AppState is Copy (all fields are RwSignal, which is Copy + 'static).
 
 use leptos::prelude::*;
-use crate::dto::{Direction, PendingMapping, Transaction};
+use crate::dto::{PendingMapping, Transaction};
 use crate::logic::{ActivePane, Item, next_item_id, transfer_item};
 
 /// Render a transaction as a single-line pane label.
 /// Debit shows a leading "-", credit a leading "+".
 fn format_txn(t: &Transaction) -> String {
-    let dollars = t.amount_cents / 100;
-    let cents = (t.amount_cents % 100).abs();
-    let sign = match t.direction {
-        Direction::Debit => "-",
-        Direction::Credit => "+",
-    };
-    format!("{} │ {} │ {}${}.{:02} │ {}", t.date, t.vendor, sign, dollars, cents, t.category)
+    let amount = hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
+    format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
 }
 
 // ── Drag types ────────────────────────────────────────────────────────────────
@@ -262,8 +257,7 @@ impl AppState {
                     "bottom" => ActivePane::Bottom,
                     _ => return None,
                 };
-                let anchored = format!("^(?:{})$", r.regex);
-                regex::Regex::new(&anchored).ok().map(|re| (re, pane, r.category_override.clone()))
+                crate::logic::compile_rule(&r.regex).ok().map(|re| (re, pane, r.category_override.clone()))
             })
             .collect();
 
@@ -285,20 +279,19 @@ impl AppState {
 
             let category = overridden_category.unwrap_or_else(|| t.category.clone());
 
-            let item = Item {
-                id: next_item_id(),
-                label: format_txn(&Transaction {
-                    date: t.date.clone(),
-                    vendor: t.vendor.clone(),
-                    category: category.clone(),
-                    amount_cents: t.amount_cents,
-                    direction: t.direction,
-                }),
+            // The item's transaction carries the (possibly overridden) category.
+            let txn = Transaction {
+                date: t.date.clone(),
+                vendor: t.vendor.clone(),
+                category,
                 amount_cents: t.amount_cents,
                 direction: t.direction,
-                date: t.date.clone(),
+            };
+            let item = Item {
+                id: next_item_id(),
+                label: format_txn(&txn),
                 auto_matched: matched_pane.is_some(),
-                category,
+                txn,
             };
 
             match matched_pane {
@@ -410,7 +403,7 @@ mod tests {
         // Verify Starbucks matches the rule and applies the category override
         let left = state.left_items.get();
         assert_eq!(left.len(), 1);
-        assert_eq!(left[0].category, "Coffee & Tea");
+        assert_eq!(left[0].txn.category, "Coffee & Tea");
         assert!(left[0].label.contains("Coffee & Tea"));
         assert!(!left[0].label.contains("Uncategorized"));
         assert!(left[0].auto_matched);
@@ -418,7 +411,7 @@ mod tests {
         // Verify Netflix matches the rule but retains the original category
         let right = state.right_items.get();
         assert_eq!(right.len(), 1);
-        assert_eq!(right[0].category, "Entertainment");
+        assert_eq!(right[0].txn.category, "Entertainment");
         assert!(right[0].label.contains("Entertainment"));
         assert!(right[0].auto_matched);
     }

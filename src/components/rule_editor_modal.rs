@@ -41,23 +41,14 @@ where
         if regex_val.is_empty() {
             (None, None)
         } else {
-            // First check if the original pattern is a valid regex.
-            match regex::Regex::new(&regex_val) {
-                Ok(_) => {
-                    let anchored = format!("^(?:{})$", regex_val);
-                    match regex::Regex::new(&anchored) {
-                        Ok(re) => {
-                            let range = re.find(&vendor_for_memo).map(|m| (m.start(), m.end()));
-                            (range, None)
-                        }
-                        Err(e) => {
-                            (None, Some(e.to_string()))
-                        }
-                    }
+            // Compile through the shared helper so the preview match here uses
+            // the same anchoring as the filter that applies the rule.
+            match crate::logic::compile_rule(&regex_val) {
+                Ok(re) => {
+                    let range = re.find(&vendor_for_memo).map(|m| (m.start(), m.end()));
+                    (range, None)
                 }
-                Err(e) => {
-                    (None, Some(e.to_string()))
-                }
+                Err(e) => (None, Some(e.to_string())),
             }
         }
     });

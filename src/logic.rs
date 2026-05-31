@@ -21,16 +21,25 @@ impl std::fmt::Display for ActivePane {
     }
 }
 
-/// A single row entry displayed inside a pane.
+/// A single row displayed inside a pane: the underlying transaction plus the
+/// view-only state needed to render and track it.
+///
+/// `Item` is a frontend view model; `txn` is the shared data model. Keeping the
+/// transaction composed (rather than flattening its fields) means an `Item` is
+/// explicitly "a presented transaction" and the projection back out is trivial.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
-    pub id:           u32,
-    pub label:        String,
-    pub amount_cents: i64,
-    pub direction:    hho_types::Direction,
-    pub date:         String,
-    pub auto_matched: bool,
-    pub category:     String,
+    pub id:           u32,                  // stable per-session row identity
+    pub label:        String,               // pre-formatted display string
+    pub auto_matched: bool,                 // routed here by an auto-assign rule
+    pub txn:          hho_types::Transaction, // the (override-applied) data
+}
+
+impl Item {
+    /// The transaction this row represents.
+    pub fn to_transaction(&self) -> hho_types::Transaction {
+        self.txn.clone()
+    }
 }
 
 /// Calculates the net total sum of pane items in cents.
@@ -38,11 +47,15 @@ pub struct Item {
 pub fn calculate_total_cents(items: &[Item]) -> i64 {
     items
         .iter()
-        .map(|item| match item.direction {
-            hho_types::Direction::Credit => item.amount_cents,
-            hho_types::Direction::Debit => -item.amount_cents,
-        })
+        .map(|item| hho_types::net_cents(item.txn.amount_cents, item.txn.direction))
         .sum()
+}
+
+/// Compile a user rule pattern into an anchored, whole-string regex.
+/// Wrapping in `^(?:…)$` here (in one place) keeps the rule-editor's match
+/// preview and the filter that applies rules in exact agreement.
+pub fn compile_rule(pattern: &str) -> Result<regex::Regex, regex::Error> {
+    regex::Regex::new(&format!("^(?:{})$", pattern))
 }
 
 // ── Row navigation ───────────────────────────────────────────────────────────
@@ -88,7 +101,7 @@ pub fn transfer_item(
     let item = source.remove(idx);
     dest.push(item);
     // Sorts destination pane items in date order from oldest to youngest.
-    dest.sort_by(|a, b| a.date.cmp(&b.date));
+    dest.sort_by(|a, b| a.txn.date.cmp(&b.txn.date));
     let new_sel = if source.is_empty() {
         None
     } else {
@@ -175,11 +188,14 @@ mod tests {
             .map(|(i, l)| Item {
                 id: i as u32,
                 label: l.to_string(),
-                amount_cents: 0,
-                direction: hho_types::Direction::Debit,
-                date: "".to_string(),
                 auto_matched: false,
-                category: "".to_string(),
+                txn: hho_types::Transaction {
+                    date: "".to_string(),
+                    vendor: "".to_string(),
+                    category: "".to_string(),
+                    amount_cents: 0,
+                    direction: hho_types::Direction::Debit,
+                },
             })
             .collect()
     }
@@ -361,20 +377,26 @@ mod tests {
             Item {
                 id: 1,
                 label: "a".to_string(),
-                amount_cents: 1000,
-                direction: hho_types::Direction::Credit,
-                date: "".to_string(),
                 auto_matched: false,
-                category: "".to_string(),
+                txn: hho_types::Transaction {
+                    date: "".to_string(),
+                    vendor: "".to_string(),
+                    category: "".to_string(),
+                    amount_cents: 1000,
+                    direction: hho_types::Direction::Credit,
+                },
             },
             Item {
                 id: 2,
                 label: "b".to_string(),
-                amount_cents: 250,
-                direction: hho_types::Direction::Debit,
-                date: "".to_string(),
                 auto_matched: false,
-                category: "".to_string(),
+                txn: hho_types::Transaction {
+                    date: "".to_string(),
+                    vendor: "".to_string(),
+                    category: "".to_string(),
+                    amount_cents: 250,
+                    direction: hho_types::Direction::Debit,
+                },
             },
         ];
         assert_eq!(calculate_total_cents(&items), 750);
@@ -386,27 +408,43 @@ mod tests {
             Item {
                 id: 1,
                 label: "2026-05-18 │ a".into(),
-                amount_cents: 100,
-                direction: hho_types::Direction::Debit,
-                date: "2026-05-18".into(),
                 auto_matched: false,
-                category: "".to_string(),
+                txn: hho_types::Transaction {
+                    date: "2026-05-18".into(),
+                    vendor: "".to_string(),
+                    category: "".to_string(),
+                    amount_cents: 100,
+                    direction: hho_types::Direction::Debit,
+                },
             }
         ];
         let dest = vec![
             Item {
                 id: 2,
                 label: "2026-05-20 │ b".into(),
-                amount_cents: 200,
-                direction: hho_types::Direction::Debit,
-                date: "2026-05-20".into(),
                 auto_matched: false,
-                category: "".to_string(),
+                txn: hho_types::Transaction {
+                    date: "2026-05-20".into(),
+                    vendor: "".to_string(),
+                    category: "".to_string(),
+                    amount_cents: 200,
+                    direction: hho_types::Direction::Debit,
+                },
             }
         ];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));
-        assert_eq!(new_dst[0].date, "2026-05-18");
-        assert_eq!(new_dst[1].date, "2026-05-20");
+        assert_eq!(new_dst[0].txn.date, "2026-05-18");
+        assert_eq!(new_dst[1].txn.date, "2026-05-20");
+    }
+
+    #[test]
+    fn compile_rule_anchors_whole_string_match() {
+        let re = compile_rule("STAR.*").unwrap();
+        assert!(re.is_match("STARBUCKS"));
+        assert!(!re.is_match("MORNINGSTAR")); // anchored: must match from the start
+        let re2 = compile_rule("BUCKS").unwrap();
+        assert!(!re2.is_match("STARBUCKS")); // anchored: must match the whole string
+        assert!(compile_rule("(unclosed").is_err());
     }
 
     #[test]

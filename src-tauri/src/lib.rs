@@ -394,23 +394,10 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
 
     wtr.write_record(&["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
 
-    let mut total_cents = 0i64;
     for t in transactions {
-        let amount_cents = t.amount_cents;
-        let dollars = amount_cents / 100;
-        let cents_rem = (amount_cents % 100).abs();
-        let sign = match t.direction {
-            hho_types::Direction::Credit => "",
-            hho_types::Direction::Debit => "-",
-        };
-        let amount_str = format!("{}{}.{:02}", sign, dollars, cents_rem);
-
-        wtr.write_record(&[&t.date, &t.vendor, &amount_str, &t.category]).map_err(|e| format!("failed to write record: {e}"))?;
-
-        match t.direction {
-            hho_types::Direction::Credit => total_cents += amount_cents,
-            hho_types::Direction::Debit => total_cents -= amount_cents,
-        }
+        let amount_str = hho_types::format_cents(hho_types::net_cents(t.amount_cents, t.direction));
+        wtr.write_record(&[&t.date, &t.vendor, &amount_str, &t.category])
+            .map_err(|e| format!("failed to write record: {e}"))?;
     }
 
     wtr.flush().map_err(|e| format!("failed to flush: {e}"))?;
@@ -422,40 +409,29 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
 
     use std::io::Write;
 
-    let total_dollars = total_cents.abs() / 100;
-    let total_cents_rem = (total_cents % 100).abs();
-    let total_sign = if total_cents < 0 { "-" } else { "" };
-    let total_str = format!("{}{}.{:02}", total_sign, total_dollars, total_cents_rem);
+    let total_cents: i64 = transactions
+        .iter()
+        .map(|t| hho_types::net_cents(t.amount_cents, t.direction))
+        .sum();
 
     writeln!(file).map_err(|e| format!("failed to write blank line: {e}"))?;
-    writeln!(file, "TOTAL,{}", total_str).map_err(|e| format!("failed to write total: {e}"))?;
+    writeln!(file, "TOTAL,{}", hho_types::format_cents(total_cents))
+        .map_err(|e| format!("failed to write total: {e}"))?;
 
-    let mut categories = std::collections::BTreeMap::new();
-    for t in transactions {
-        let cat_name = if t.category.trim().is_empty() {
-            "(No Category)".to_string()
-        } else {
-            t.category.trim().to_string()
-        };
-        *categories.entry(cat_name).or_insert(0i64) += match t.direction {
-            hho_types::Direction::Credit => t.amount_cents,
-            hho_types::Direction::Debit => -t.amount_cents,
-        };
-    }
+    let categories = hho_types::summarize_by_category(
+        transactions.iter().map(|t| (t.category.as_str(), hho_types::net_cents(t.amount_cents, t.direction))),
+    );
 
     for (name, cat_total) in categories {
-        let cat_dollars = cat_total.abs() / 100;
-        let cat_cents = (cat_total % 100).abs();
-        let cat_sign = if cat_total < 0 { "-" } else { "" };
-        let cat_amount_str = format!("{}{}.{:02}", cat_sign, cat_dollars, cat_cents);
-
+        // CSV-escape category names that contain a comma or quote.
         let escaped_name = if name.contains(',') || name.contains('"') {
             format!("\"{}\"", name.replace('"', "\"\""))
         } else {
             name
         };
 
-        writeln!(file, "{},{}", escaped_name, cat_amount_str).map_err(|e| format!("failed to write category total: {e}"))?;
+        writeln!(file, "{},{}", escaped_name, hho_types::format_cents(cat_total))
+            .map_err(|e| format!("failed to write category total: {e}"))?;
     }
 
     Ok(())

@@ -9,7 +9,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::dto::{OpenResult, PendingMapping};
 use crate::ipc;
-use crate::logic::{ActivePane, Item, nav_up, nav_down, pane_left, pane_right};
+use crate::logic::{ActivePane, nav_up, nav_down, pane_left, pane_right};
 use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 use crate::components::{
     debug_log::DebugLog,
@@ -91,30 +91,11 @@ pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
     }
 }
 
-/// Extracts the vendor string from the formatted item label.
-pub(crate) fn get_vendor_for_item(state: AppState, item: &Item) -> String {
-    let txns = state.raw_transactions.get_untracked();
-    for t in txns {
-        if t.date == item.date && t.amount_cents == item.amount_cents && t.direction == item.direction {
-            if item.label.contains(&t.vendor) {
-                return t.vendor.clone();
-            }
-        }
-    }
-    let parts: Vec<&str> = item.label.split(" │ ").collect();
-    if parts.len() >= 2 {
-        parts[1].to_string()
-    } else {
-        "".to_string()
-    }
-}
-
 /// Searches for an existing auto-assign rule matching the vendor name.
 fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types::AutoAssignRule)> {
     let rules = state.auto_assign_rules.get_untracked();
     for (idx, r) in rules.iter().enumerate() {
-        let anchored = format!("^(?:{})$", r.regex);
-        if let Ok(re) = regex::Regex::new(&anchored) {
+        if let Ok(re) = crate::logic::compile_rule(&r.regex) {
             if re.is_match(vendor) {
                 return Some((idx, r.clone()));
             }
@@ -421,7 +402,7 @@ pub fn App() -> impl IntoView {
 
             // Renders the auto-assign modal when assigning an item.
             {move || state.assign_modal_item.get().map(|item| {
-                let vendor = get_vendor_for_item(state, &item);
+                let vendor = item.txn.vendor.clone();
                 let escaped_vendor = crate::logic::escape_regex(&vendor);
                 let matched_info = find_matching_rule(state, &vendor);
                 let initial_regex = matched_info.as_ref().map(|(_, r)| r.regex.clone()).unwrap_or_else(|| escaped_vendor.clone());

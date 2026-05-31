@@ -7,6 +7,8 @@
 // Argument structs carry `#[serde(rename_all = "camelCase")]` because Tauri v2
 // matches command arguments by camelCase keys.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 // ── Domain types ──────────────────────────────────────────────────────────────
@@ -106,6 +108,61 @@ pub struct LayoutConfig {
     pub debug_h: f32,
 }
 
+// ── Money helpers ─────────────────────────────────────────────────────────────
+// Single source of truth for cents arithmetic and currency formatting, shared by
+// the frontend pane headers / row labels and the backend CSV export.
+
+/// Signed net cents for an amount: credits positive, debits negative.
+/// `amount_cents` is always a non-negative magnitude.
+pub fn net_cents(amount_cents: i64, direction: Direction) -> i64 {
+    match direction {
+        Direction::Credit => amount_cents,
+        Direction::Debit => -amount_cents,
+    }
+}
+
+/// Format signed cents without a currency symbol: `-28697 → "-286.97"`,
+/// `1000 → "10.00"`. Used for CSV output.
+pub fn format_cents(cents: i64) -> String {
+    let sign = if cents < 0 { "-" } else { "" };
+    let abs = cents.abs();
+    format!("{}{}.{:02}", sign, abs / 100, abs % 100)
+}
+
+/// Format signed cents as currency, showing "-" only when negative:
+/// `-540 → "-$5.40"`, `540 → "$5.40"`. Used for pane-header totals.
+pub fn format_dollars(cents: i64) -> String {
+    let sign = if cents < 0 { "-" } else { "" };
+    let abs = cents.abs();
+    format!("{}${}.{:02}", sign, abs / 100, abs % 100)
+}
+
+/// Format signed cents as currency with an explicit sign:
+/// `540 → "+$5.40"`, `-540 → "-$5.40"`. Used for per-transaction row labels.
+pub fn format_dollars_signed(cents: i64) -> String {
+    let sign = if cents < 0 { "-" } else { "+" };
+    let abs = cents.abs();
+    format!("{}${}.{:02}", sign, abs / 100, abs % 100)
+}
+
+/// Net cents per category, sorted by name. Blank/whitespace categories collapse
+/// to "(No Category)". Each entry is `(category, net_cents)`.
+pub fn summarize_by_category<'a, I>(entries: I) -> BTreeMap<String, i64>
+where
+    I: IntoIterator<Item = (&'a str, i64)>,
+{
+    let mut map = BTreeMap::new();
+    for (cat, net) in entries {
+        let name = if cat.trim().is_empty() {
+            "(No Category)".to_string()
+        } else {
+            cat.trim().to_string()
+        };
+        *map.entry(name).or_insert(0i64) += net;
+    }
+    map
+}
+
 // ── Command argument structs (frontend → backend) ─────────────────────────────
 
 /// Arguments for the `open_csv` command.
@@ -150,4 +207,54 @@ pub struct AutoAssignRule {
     pub pane: String, // "left" | "right" | "bottom"
     #[serde(default)]
     pub category_override: Option<String>,
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn net_cents_signs_by_direction() {
+        assert_eq!(net_cents(540, Direction::Credit), 540);
+        assert_eq!(net_cents(540, Direction::Debit), -540);
+    }
+
+    #[test]
+    fn format_cents_has_no_symbol() {
+        assert_eq!(format_cents(-28697), "-286.97");
+        assert_eq!(format_cents(1000), "10.00");
+        assert_eq!(format_cents(5), "0.05");
+        assert_eq!(format_cents(0), "0.00");
+    }
+
+    #[test]
+    fn format_dollars_shows_minus_only() {
+        assert_eq!(format_dollars(-540), "-$5.40");
+        assert_eq!(format_dollars(540), "$5.40");
+        assert_eq!(format_dollars(0), "$0.00");
+    }
+
+    #[test]
+    fn format_dollars_signed_always_shows_sign() {
+        assert_eq!(format_dollars_signed(540), "+$5.40");
+        assert_eq!(format_dollars_signed(-540), "-$5.40");
+    }
+
+    #[test]
+    fn summarize_by_category_nets_and_labels_blanks() {
+        let entries = vec![
+            ("Travel", -28697),
+            ("", -540),          // blank → "(No Category)"
+            ("  ", 100),         // whitespace also collapses, and sums in
+            ("Travel", -100),    // same category accumulates
+        ];
+        let summary = summarize_by_category(entries);
+        assert_eq!(summary.get("Travel"), Some(&-28797));
+        assert_eq!(summary.get("(No Category)"), Some(&-440));
+        // BTreeMap iteration is sorted: "(No Category)" precedes "Travel".
+        let keys: Vec<_> = summary.keys().cloned().collect();
+        assert_eq!(keys, vec!["(No Category)".to_string(), "Travel".to_string()]);
+    }
 }
