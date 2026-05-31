@@ -284,6 +284,23 @@ pub struct SaveWindowSizeArgs {
     pub height: f64,
 }
 
+/// Represents arguments for the `save_auto_assign_rules` command.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAutoAssignRulesArgs {
+    pub rules: Vec<AutoAssignRule>,
+}
+
+/// Represents arguments for the `save_pane_transactions` command.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePaneTransactionsArgs {
+    pub pane_title: String,
+    pub month_name: String,
+    pub year: i32,
+    pub transactions: Vec<Transaction>,
+}
+
 /// Target pane destination for automatic transaction assignment.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]

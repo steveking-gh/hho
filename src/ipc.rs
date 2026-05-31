@@ -7,8 +7,8 @@
 use wasm_bindgen::prelude::*;
 
 use hho_types::{
-    AutoAssignRule, Institution, LayoutConfig, OpenCsvArgs, OpenResult, SaveLayoutArgs,
-    SaveMappingArgs, SaveWindowSizeArgs, Transaction,
+    AutoAssignRule, Institution, LayoutConfig, OpenCsvArgs, OpenResult, SaveAutoAssignRulesArgs,
+    SaveLayoutArgs, SaveMappingArgs, SavePaneTransactionsArgs, SaveWindowSizeArgs, Transaction,
 };
 
 #[wasm_bindgen]
@@ -107,26 +107,9 @@ pub async fn get_auto_assign_rules() -> Result<Vec<AutoAssignRule>, String> {
     call_unit("get_auto_assign_rules").await
 }
 
-/// Arguments for the `save_auto_assign_rules` command.
-#[derive(serde::Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveAutoAssignRulesArgs {
-    pub rules: Vec<AutoAssignRule>,
-}
-
 /// Saves the complete list of auto-assign rules.
 pub async fn save_auto_assign_rules(rules: Vec<AutoAssignRule>) -> Result<(), String> {
     call("save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
-}
-
-/// Arguments for the `save_pane_transactions` command.
-#[derive(serde::Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SavePaneTransactionsArgs {
-    pub pane_title: String,
-    pub month_name: String,
-    pub year: i32,
-    pub transactions: Vec<Transaction>,
 }
 
 /// Saves transactions in a selected pane to a CSV file.
