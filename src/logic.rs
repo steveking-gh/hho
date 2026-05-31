@@ -635,4 +635,21 @@ mod tests {
         assert_eq!(middle[0].txn.category, "Groceries");
         assert!(!middle[0].auto_matched);
     }
+
+    #[test]
+    fn test_month_names_logic() {
+        assert_eq!(get_month_name(1), "January");
+        assert_eq!(get_month_name(12), "December");
+        assert_eq!(get_month_name(13), "Unknown");
+        assert_eq!(get_month_name(0), "Unknown");
+
+        assert_eq!(get_month_abbr(1), "Jan");
+        assert_eq!(get_month_abbr(12), "Dec");
+        assert_eq!(get_month_abbr(13), "");
+        assert_eq!(get_month_abbr(0), "");
+
+        assert_eq!(MONTHS_ABBR.len(), 12);
+        assert_eq!(MONTHS_ABBR[0], (1, "Jan"));
+        assert_eq!(MONTHS_ABBR[11], (12, "Dec"));
+    }
 }
