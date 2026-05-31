@@ -151,7 +151,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
         ));
 
         spawn_local(async move {
-            match crate::ipc::save_mapping(institution, path).await {
+            match crate::ipc::save_mapping(state, institution, path).await {
                 Ok(txns) => state.populate_transactions(&inst_name, txns),
                 Err(e) => state.log(format!("[Mapping] save_mapping failed: {e}")),
             }

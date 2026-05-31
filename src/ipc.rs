@@ -12,6 +12,7 @@
 // list) produce large log entries; consider truncating if this grows.
 
 use wasm_bindgen::prelude::*;
+use crate::state::AppState;
 
 
 use hho_types::{
@@ -92,68 +93,50 @@ fn summarize_js(val: &JsValue) -> String {
 }
 
 /// Invoke a command with no arguments and deserialize its result.
-async fn call_unit<R: serde::de::DeserializeOwned>(cmd: &str) -> Result<R, String> {
-    let state = crate::state::get_global_state();
-    if let Some(s) = state {
-        s.log(format!("[IPC Request] {cmd} with no args"));
-    }
+async fn call_unit<R: serde::de::DeserializeOwned>(state: AppState, cmd: &str) -> Result<R, String> {
+    state.log(format!("[IPC Request] {cmd} with no args"));
     let res = invoke_raw(cmd, JsValue::NULL).await;
     match res {
         Ok(v) => {
             let res_str = summarize_js(&v);
-            if let Some(s) = state {
-                s.log(format!("[IPC Response] {cmd} success: {res_str}"));
-            }
+            state.log(format!("[IPC Response] {cmd} success: {res_str}"));
             serde_wasm_bindgen::from_value(v).map_err(|e| {
                 let err_msg = e.to_string();
-                if let Some(s) = state {
-                    s.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
-                }
+                state.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
                 err_msg
             })
         }
         Err(e) => {
             let err_str = stringify_js(&e);
-            if let Some(s) = state {
-                s.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
-            }
+            state.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
             Err(err_str)
         }
     }
 }
 
 /// Invoke a command with arguments and deserialize its result.
-async fn call<A, R>(cmd: &str, args: &A) -> Result<R, String>
+async fn call<A, R>(state: AppState, cmd: &str, args: &A) -> Result<R, String>
 where
     A: serde::Serialize,
     R: serde::de::DeserializeOwned,
 {
-    let state = crate::state::get_global_state();
     let args_val = to_args(args);
     let args_str = summarize_js(&args_val);
-    if let Some(s) = state {
-        s.log(format!("[IPC Request] {cmd} with args: {args_str}"));
-    }
+    state.log(format!("[IPC Request] {cmd} with args: {args_str}"));
     let res = invoke_raw(cmd, args_val).await;
     match res {
         Ok(v) => {
             let res_str = summarize_js(&v);
-            if let Some(s) = state {
-                s.log(format!("[IPC Response] {cmd} success: {res_str}"));
-            }
+            state.log(format!("[IPC Response] {cmd} success: {res_str}"));
             serde_wasm_bindgen::from_value(v).map_err(|e| {
                 let err_msg = e.to_string();
-                if let Some(s) = state {
-                    s.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
-                }
+                state.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
                 err_msg
             })
         }
         Err(e) => {
             let err_str = stringify_js(&e);
-            if let Some(s) = state {
-                s.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
-            }
+            state.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
             Err(err_str)
         }
     }
@@ -162,21 +145,23 @@ where
 // ── Command wrappers ──────────────────────────────────────────────────────────
 
 /// Open a native file picker and read the chosen CSV.
-pub async fn pick_csv() -> Result<OpenResult, String> {
-    call_unit("pick_csv").await
+pub async fn pick_csv(state: AppState) -> Result<OpenResult, String> {
+    call_unit(state, "pick_csv").await
 }
 
 /// Read a CSV at a known path (Open Recent flow).
-pub async fn open_csv(path: String) -> Result<OpenResult, String> {
-    call("open_csv", &OpenCsvArgs { path }).await
+pub async fn open_csv(state: AppState, path: String) -> Result<OpenResult, String> {
+    call(state, "open_csv", &OpenCsvArgs { path }).await
 }
 
-/// Persist a column mapping, then parse the pending file with it.
+/// Persist a column mapping, then parse the pending file using the saved mapping.
 pub async fn save_mapping(
+    state: AppState,
     institution: Institution,
     pending_path: String,
 ) -> Result<Vec<Transaction>, String> {
     call(
+        state,
         "save_mapping",
         &SaveMappingArgs {
             institution,
@@ -187,13 +172,12 @@ pub async fn save_mapping(
 }
 
 /// Fetch persisted pane dimensions.
-pub async fn get_layout() -> Result<LayoutConfig, String> {
-    call_unit("get_layout").await
+pub async fn get_layout(state: AppState) -> Result<LayoutConfig, String> {
+    call_unit(state, "get_layout").await
 }
 
 /// Persist pane dimensions (best-effort; ignores failures).
-pub async fn save_layout(left_width: f32, right_width: f32, bottom_h: f32, debug_h: f32) {
-    let state = crate::state::get_global_state();
+pub async fn save_layout(state: AppState, left_width: f32, right_width: f32, bottom_h: f32, debug_h: f32) {
     let args = SaveLayoutArgs {
         left_width,
         right_width,
@@ -202,69 +186,57 @@ pub async fn save_layout(left_width: f32, right_width: f32, bottom_h: f32, debug
     };
     let args_val = to_args(&args);
     let args_str = summarize_js(&args_val);
-    if let Some(s) = state {
-        s.log(format!("[IPC Request] save_layout with args: {args_str}"));
-    }
+    state.log(format!("[IPC Request] save_layout with args: {args_str}"));
     let res = invoke_raw("save_layout", args_val).await;
     match res {
         Ok(v) => {
             let res_str = summarize_js(&v);
-            if let Some(s) = state {
-                s.log(format!("[IPC Response] save_layout success: {res_str}"));
-            }
+            state.log(format!("[IPC Response] save_layout success: {res_str}"));
         }
         Err(e) => {
             let err_str = stringify_js(&e);
-            if let Some(s) = state {
-                s.log(format!("[IPC Error] save_layout backend error: {err_str}"));
-            }
+            state.log(format!("[IPC Error] save_layout backend error: {err_str}"));
         }
     }
 }
 
 /// Persist window dimensions (best-effort; ignores failures).
-pub async fn save_window_size(width: f64, height: f64) {
-    let state = crate::state::get_global_state();
+pub async fn save_window_size(state: AppState, width: f64, height: f64) {
     let args = SaveWindowSizeArgs { width, height };
     let args_val = to_args(&args);
     let args_str = summarize_js(&args_val);
-    if let Some(s) = state {
-        s.log(format!("[IPC Request] save_window_size with args: {args_str}"));
-    }
+    state.log(format!("[IPC Request] save_window_size with args: {args_str}"));
     let res = invoke_raw("save_window_size", args_val).await;
     match res {
         Ok(v) => {
             let res_str = summarize_js(&v);
-            if let Some(s) = state {
-                s.log(format!("[IPC Response] save_window_size success: {res_str}"));
-            }
+            state.log(format!("[IPC Response] save_window_size success: {res_str}"));
         }
         Err(e) => {
             let err_str = stringify_js(&e);
-            if let Some(s) = state {
-                s.log(format!("[IPC Error] save_window_size backend error: {err_str}"));
-            }
+            state.log(format!("[IPC Error] save_window_size backend error: {err_str}"));
         }
     }
 }
 
 /// Fetches the recent CSV file paths.
-pub async fn get_recent_files() -> Result<Vec<String>, String> {
-    call_unit("get_recent_files").await
+pub async fn get_recent_files(state: AppState) -> Result<Vec<String>, String> {
+    call_unit(state, "get_recent_files").await
 }
 
 /// Fetches the auto-assign rules.
-pub async fn get_auto_assign_rules() -> Result<Vec<AutoAssignRule>, String> {
-    call_unit("get_auto_assign_rules").await
+pub async fn get_auto_assign_rules(state: AppState) -> Result<Vec<AutoAssignRule>, String> {
+    call_unit(state, "get_auto_assign_rules").await
 }
 
 /// Saves the complete list of auto-assign rules.
-pub async fn save_auto_assign_rules(rules: Vec<AutoAssignRule>) -> Result<(), String> {
-    call("save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
+pub async fn save_auto_assign_rules(state: AppState, rules: Vec<AutoAssignRule>) -> Result<(), String> {
+    call(state, "save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
 }
 
 /// Saves transactions in a selected pane to a CSV file.
 pub async fn save_pane_transactions(
+    state: AppState,
     pane_title: String,
     month_name: String,
     year: i32,
@@ -276,28 +248,21 @@ pub async fn save_pane_transactions(
         year,
         transactions,
     };
-    call("save_pane_transactions", &args).await
+    call(state, "save_pane_transactions", &args).await
 }
 
 /// Closes the application cleanly.
-pub async fn exit_app() {
-    let state = crate::state::get_global_state();
-    if let Some(s) = state {
-        s.log("[IPC Request] exit_app with no args".to_string());
-    }
+pub async fn exit_app(state: AppState) {
+    state.log("[IPC Request] exit_app with no args".to_string());
     let res = invoke_raw("exit_app", JsValue::NULL).await;
     match res {
         Ok(v) => {
             let res_str = summarize_js(&v);
-            if let Some(s) = state {
-                s.log(format!("[IPC Response] exit_app success: {res_str}"));
-            }
+            state.log(format!("[IPC Response] exit_app success: {res_str}"));
         }
         Err(e) => {
             let err_str = stringify_js(&e);
-            if let Some(s) = state {
-                s.log(format!("[IPC Error] exit_app backend error: {err_str}"));
-            }
+            state.log(format!("[IPC Error] exit_app backend error: {err_str}"));
         }
     }
 }

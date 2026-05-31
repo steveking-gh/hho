@@ -49,7 +49,7 @@ pub fn RulesModal() -> impl IntoView {
                 "[AutoAssign] saving {} rules to persistent config",
                 draft.len()
             ));
-            if let Err(e) = crate::ipc::save_auto_assign_rules(draft.clone()).await {
+            if let Err(e) = crate::ipc::save_auto_assign_rules(state, draft.clone()).await {
                 state.log(format!("[AutoAssign] failed to save rules list: {e}"));
             } else {
                 state.auto_assign_rules.set(draft);

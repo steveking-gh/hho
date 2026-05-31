@@ -33,7 +33,7 @@ pub fn save_pane(state: AppState, pane: ActivePane, title: &str) {
             txns.len()
         ));
         if let Err(e) =
-            crate::ipc::save_pane_transactions(title_str.clone(), month_name, year, txns).await
+            crate::ipc::save_pane_transactions(state, title_str.clone(), month_name, year, txns).await
         {
             state.log(format!(
                 "[Save] Failed to save {title_str} transactions: {e}"
@@ -55,7 +55,7 @@ pub fn Header() -> impl IntoView {
         state.is_loading_file.set(true);
         state.log("[Header] Open CSV clicked".to_string());
         spawn_local(async move {
-            match crate::ipc::pick_csv().await {
+            match crate::ipc::pick_csv(state).await {
                 Ok(r) => handle_open_result(state, r),
                 Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
             }
@@ -67,7 +67,7 @@ pub fn Header() -> impl IntoView {
     let on_quit = move |_| {
         state.log("[Header] Quit clicked".to_string());
         spawn_local(async move {
-            crate::ipc::exit_app().await;
+            crate::ipc::exit_app(state).await;
         });
     };
 
@@ -141,7 +141,7 @@ pub fn Header() -> impl IntoView {
                                             state.log(format!("[Header] Opening recent file: {path_clone}"));
                                             let p = path_clone.clone();
                                             spawn_local(async move {
-                                                match crate::ipc::open_csv(p).await {
+                                                match crate::ipc::open_csv(state, p).await {
                                                     Ok(r)  => handle_open_result(state, r),
                                                     Err(e) => state.log(format!("[File] open_csv failed: {e}")),
                                                 }

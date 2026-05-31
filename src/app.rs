@@ -172,7 +172,7 @@ pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor:
         rule.pane
     ));
 
-    if let Err(e) = crate::ipc::save_auto_assign_rules(rules.clone()).await {
+    if let Err(e) = crate::ipc::save_auto_assign_rules(state, rules.clone()).await {
         state.log(format!("[AutoAssign] failed to save rules list: {e}"));
     } else {
         state.auto_assign_rules.set(rules);
@@ -185,7 +185,7 @@ pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor:
 
 fn load_layout_from_config(state: AppState) {
     spawn_local(async move {
-        if let Ok(layout) = ipc::get_layout().await {
+        if let Ok(layout) = ipc::get_layout(state).await {
             state.left_width.set(layout.left_width);
             state.right_width.set(layout.right_width);
             state.bottom_h.set(layout.bottom_h);
@@ -274,7 +274,7 @@ pub fn App() -> impl IntoView {
         ));
 
         spawn_local(async move {
-            ipc::save_layout(left_w, right_w, bot_h, dbg_h).await;
+            ipc::save_layout(state, left_w, right_w, bot_h, dbg_h).await;
         });
     });
 
@@ -311,7 +311,7 @@ pub fn App() -> impl IntoView {
                 state.is_loading_file.set(true);
                 state.log("[Shortcut] Ctrl+O → invoking pick_csv".to_string());
                 spawn_local(async move {
-                    match ipc::pick_csv().await {
+                    match ipc::pick_csv(state).await {
                         Ok(r) => handle_open_result(state, r),
                         Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
                     }
@@ -320,7 +320,7 @@ pub fn App() -> impl IntoView {
             } else {
                 state.log("[Shortcut] Ctrl+Q → exiting app".to_string());
                 spawn_local(async move {
-                    ipc::exit_app().await;
+                    ipc::exit_app(state).await;
                 });
             }
             return;
@@ -461,7 +461,7 @@ pub fn App() -> impl IntoView {
         ));
 
         spawn_local(async move {
-            ipc::save_window_size(width, height).await;
+            ipc::save_window_size(state, width, height).await;
         });
     });
 

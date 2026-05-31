@@ -4,27 +4,6 @@
 use crate::dto::{PendingMapping, Transaction};
 use crate::logic::{classify_transactions, transfer_item, ActivePane, Item};
 use leptos::prelude::*;
-use std::cell::Cell;
-
-// ── Global state handle (non-reactive / async contexts) ──────────────────────
-//
-// The IPC layer (`crate::ipc`) mirrors every request/response into the debug log,
-// but those wrappers run outside any component and lack `use_context` access to
-// AppState. This thread-local holds the single AppState so `ipc.rs` can reach the
-// logger. Sound here because the app is single-threaded WASM, AppState is `Copy`,
-// and the cell is written exactly once in `AppState::new()`.
-//
-// Trade-off: a hidden global dependency. Prefer passing state explicitly; this
-// exists only for the cross-cutting logging concern. Narrowing it to a logger
-// handle (just the debug-log signals) would shrink the global surface.
-thread_local! {
-    static GLOBAL_STATE: Cell<Option<AppState>> = const { Cell::new(None) };
-}
-
-/// Returns the process-global AppState, if one has been constructed.
-pub fn get_global_state() -> Option<AppState> {
-    GLOBAL_STATE.with(|g| g.get())
-}
 
 // ── Drag types ────────────────────────────────────────────────────────────────
 
@@ -114,7 +93,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let state = Self {
+        Self {
             active_pane: RwSignal::new(ActivePane::Middle),
             left_items: RwSignal::new(vec![]),
             middle_items: RwSignal::new(vec![]),
@@ -148,12 +127,7 @@ impl AppState {
             is_create_transaction_modal_open: RwSignal::new(false),
             print_target: RwSignal::new(None),
             show_debug_log: RwSignal::new(false),
-        };
-
-        // Save the state globally for IPC/async logging access.
-        GLOBAL_STATE.with(|g| g.set(Some(state)));
-
-        state
+        }
     }
 
     /// Returns true if any modal or overlay is currently open to gate header and main actions.
@@ -172,7 +146,7 @@ impl AppState {
         self.current_institution.set(Some(institution.to_string()));
         let state = self;
         wasm_bindgen_futures::spawn_local(async move {
-            if let Ok(rules) = crate::ipc::get_auto_assign_rules().await {
+            if let Ok(rules) = crate::ipc::get_auto_assign_rules(state).await {
                 state.auto_assign_rules.set(rules);
             }
             state.apply_month_filter();
@@ -216,10 +190,11 @@ impl AppState {
     /// Fetches the latest list of recent files from the backend config.
     pub fn refresh_recent_files(self) {
         use wasm_bindgen_futures::spawn_local;
+        let state = self;
         spawn_local(async move {
-            match crate::ipc::get_recent_files().await {
-                Ok(files) => self.recent_files.set(files),
-                Err(e) => self.log(format!("[File] failed to get recent files: {e}")),
+            match crate::ipc::get_recent_files(state).await {
+                Ok(files) => state.recent_files.set(files),
+                Err(e) => state.log(format!("[File] failed to get recent files: {e}")),
             }
         });
     }
