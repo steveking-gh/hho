@@ -1,6 +1,8 @@
-# Tauri + Leptos
+# HHO - His/Hers/Our Personal Finance Sorter
 
-This template should help get you started developing with Tauri and Leptos.
+I coded this app entirely Claude and Gemini and don't take it too seriously.  That said, it has some slick features to help me quickly sort and auto-sort credit card transactions downloaded as a CSV file into Personal and Joint expenses.
+
+The Implementation is Rust with FE/BE architecture driven by Tauri + Leptos.
 
 ## Recommended IDE Setup
 
