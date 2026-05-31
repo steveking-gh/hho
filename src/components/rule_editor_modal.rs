@@ -2,8 +2,8 @@
 // Renders match highlighting preview, validation state, and destination buttons.
 // Invokes callbacks on save and cancel actions.
 
-use leptos::prelude::*;
 use hho_types::AutoAssignRule;
+use leptos::prelude::*;
 
 #[component]
 pub fn RuleEditorModal<S, C>(
@@ -31,9 +31,7 @@ where
     let (target_pane, set_target_pane) = signal(initial_pane);
     let (category_override_input, set_category_override_input) = signal(initial_category_override);
 
-    let is_override_active = Memo::new(move |_| {
-        !category_override_input.get().trim().is_empty()
-    });
+    let is_override_active = Memo::new(move |_| !category_override_input.get().trim().is_empty());
 
     // Tracks regex match result and compilation errors reactively.
     let match_memo = Memo::new(move |_| {

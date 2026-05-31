@@ -1,11 +1,11 @@
 // Modal component for viewing and managing auto-assign rules.
 // Allows user to select rules, delete rules, and edit rule matching regexes.
 
+use crate::components::rule_editor_modal::RuleEditorModal;
+use crate::state::AppState;
+use hho_types::AutoAssignRule;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::state::AppState;
-use crate::components::rule_editor_modal::RuleEditorModal;
-use hho_types::AutoAssignRule;
 
 /// Finds a matching transaction vendor name from the loaded CSV to serve as a preview.
 fn find_preview_vendor(state: AppState, regex_str: &str) -> String {
@@ -29,7 +29,11 @@ pub fn RulesModal() -> impl IntoView {
     let initial_rules = state.auto_assign_rules.get_untracked();
     let rules_draft = RwSignal::new(initial_rules.clone());
 
-    let initial_sel = if initial_rules.is_empty() { None } else { Some(0) };
+    let initial_sel = if initial_rules.is_empty() {
+        None
+    } else {
+        Some(0)
+    };
     let rules_sel = RwSignal::new(initial_sel);
     let editing_rule_index = RwSignal::new(None::<usize>);
 
@@ -41,7 +45,10 @@ pub fn RulesModal() -> impl IntoView {
         let draft = rules_draft.get_untracked();
         let state = state;
         spawn_local(async move {
-            state.log(format!("[AutoAssign] saving {} rules to persistent config", draft.len()));
+            state.log(format!(
+                "[AutoAssign] saving {} rules to persistent config",
+                draft.len()
+            ));
             if let Err(e) = crate::ipc::save_auto_assign_rules(draft.clone()).await {
                 state.log(format!("[AutoAssign] failed to save rules list: {e}"));
             } else {

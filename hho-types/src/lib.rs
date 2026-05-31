@@ -59,7 +59,7 @@ pub struct Institution {
 /// A normalized transaction produced by applying an Institution to a CSV row.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Transaction {
-    pub date: String,      // canonical "YYYY-MM-DD"
+    pub date: String, // canonical "YYYY-MM-DD"
     pub vendor: String,
     pub category: String,
     pub amount_cents: i64, // magnitude, always >= 0
@@ -246,15 +246,18 @@ mod tests {
     fn summarize_by_category_nets_and_labels_blanks() {
         let entries = vec![
             ("Travel", -28697),
-            ("", -540),          // blank → "(No Category)"
-            ("  ", 100),         // whitespace also collapses, and sums in
-            ("Travel", -100),    // same category accumulates
+            ("", -540),       // blank → "(No Category)"
+            ("  ", 100),      // whitespace also collapses, and sums in
+            ("Travel", -100), // same category accumulates
         ];
         let summary = summarize_by_category(entries);
         assert_eq!(summary.get("Travel"), Some(&-28797));
         assert_eq!(summary.get("(No Category)"), Some(&-440));
         // BTreeMap iteration is sorted: "(No Category)" precedes "Travel".
         let keys: Vec<_> = summary.keys().cloned().collect();
-        assert_eq!(keys, vec!["(No Category)".to_string(), "Travel".to_string()]);
+        assert_eq!(
+            keys,
+            vec!["(No Category)".to_string(), "Travel".to_string()]
+        );
     }
 }

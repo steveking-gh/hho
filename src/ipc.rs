@@ -30,7 +30,9 @@ fn to_args<T: serde::Serialize>(args: &T) -> JsValue {
 
 /// Invoke a command with no arguments and deserialize its result.
 async fn call_unit<R: serde::de::DeserializeOwned>(cmd: &str) -> Result<R, String> {
-    let v = invoke_raw(cmd, JsValue::NULL).await.map_err(|e| format!("{e:?}"))?;
+    let v = invoke_raw(cmd, JsValue::NULL)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
 }
 
@@ -40,7 +42,9 @@ where
     A: serde::Serialize,
     R: serde::de::DeserializeOwned,
 {
-    let v = invoke_raw(cmd, to_args(args)).await.map_err(|e| format!("{e:?}"))?;
+    let v = invoke_raw(cmd, to_args(args))
+        .await
+        .map_err(|e| format!("{e:?}"))?;
     serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
 }
 
@@ -61,7 +65,14 @@ pub async fn save_mapping(
     institution: Institution,
     pending_path: String,
 ) -> Result<Vec<Transaction>, String> {
-    call("save_mapping", &SaveMappingArgs { institution, pending_path }).await
+    call(
+        "save_mapping",
+        &SaveMappingArgs {
+            institution,
+            pending_path,
+        },
+    )
+    .await
 }
 
 /// Fetch persisted pane dimensions.
@@ -71,7 +82,12 @@ pub async fn get_layout() -> Result<LayoutConfig, String> {
 
 /// Persist pane dimensions (best-effort; ignores failures).
 pub async fn save_layout(left_width: f32, right_width: f32, bottom_h: f32, debug_h: f32) {
-    let args = SaveLayoutArgs { left_width, right_width, bottom_h, debug_h };
+    let args = SaveLayoutArgs {
+        left_width,
+        right_width,
+        bottom_h,
+        debug_h,
+    };
     let _ = invoke_raw("save_layout", to_args(&args)).await;
 }
 
@@ -120,7 +136,12 @@ pub async fn save_pane_transactions(
     year: i32,
     transactions: Vec<Transaction>,
 ) -> Result<(), String> {
-    let args = SavePaneTransactionsArgs { pane_title, month_name, year, transactions };
+    let args = SavePaneTransactionsArgs {
+        pane_title,
+        month_name,
+        year,
+        transactions,
+    };
     call("save_pane_transactions", &args).await
 }
 

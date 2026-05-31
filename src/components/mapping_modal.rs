@@ -47,16 +47,16 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let s = &pm.suggested;
 
     // ── Form signals, seeded from the backend's heuristic suggestion ──────────
-    let name              = RwSignal::new(String::new());
-    let date_col          = RwSignal::new(s.date_col);
-    let vendor_col        = RwSignal::new(s.vendor_col);
-    let category_col      = RwSignal::new(s.category_col);
-    let amount_col        = RwSignal::new(s.amount_col);
-    let scheme            = RwSignal::new(s.scheme.clone());
+    let name = RwSignal::new(String::new());
+    let date_col = RwSignal::new(s.date_col);
+    let vendor_col = RwSignal::new(s.vendor_col);
+    let category_col = RwSignal::new(s.category_col);
+    let amount_col = RwSignal::new(s.amount_col);
+    let scheme = RwSignal::new(s.scheme.clone());
     let debit_is_negative = RwSignal::new(s.debit_is_negative);
-    let type_col          = RwSignal::new(s.type_col.unwrap_or(0));
-    let debit_labels      = RwSignal::new("Sale,DEBIT,DR".to_string());
-    let credit_labels     = RwSignal::new("Payment,CREDIT,CR".to_string());
+    let type_col = RwSignal::new(s.type_col.unwrap_or(0));
+    let debit_labels = RwSignal::new("Sale,DEBIT,DR".to_string());
+    let credit_labels = RwSignal::new("Payment,CREDIT,CR".to_string());
 
     // One hidden-flag per column; seeded from suggested ignore_cols.
     let hidden = RwSignal::new({
@@ -70,15 +70,15 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     });
 
     // Owned clones for the various view fragments (avoids borrow gymnastics).
-    let headers       = pm.headers.clone();
-    let h_date        = pm.headers.clone();
-    let h_vendor      = pm.headers.clone();
-    let h_category    = pm.headers.clone();
-    let h_amount      = pm.headers.clone();
-    let h_type        = pm.headers.clone();
-    let sample_rows   = pm.sample_rows.clone();
-    let pending_path  = pm.pending_path.clone();
-    let fingerprint   = pm.fingerprint.clone();
+    let headers = pm.headers.clone();
+    let h_date = pm.headers.clone();
+    let h_vendor = pm.headers.clone();
+    let h_category = pm.headers.clone();
+    let h_amount = pm.headers.clone();
+    let h_type = pm.headers.clone();
+    let sample_rows = pm.sample_rows.clone();
+    let pending_path = pm.pending_path.clone();
+    let fingerprint = pm.fingerprint.clone();
 
     // ── Save handler ──────────────────────────────────────────────────────────
     let on_save = move |_| {
@@ -124,7 +124,9 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
         };
 
         let path = pending_path.clone();
-        state.log(format!("[Mapping] saving \"{inst_name}\" and parsing file…"));
+        state.log(format!(
+            "[Mapping] saving \"{inst_name}\" and parsing file…"
+        ));
 
         spawn_local(async move {
             match crate::ipc::save_mapping(institution, path).await {

@@ -13,9 +13,9 @@ pub enum ActivePane {
 impl std::fmt::Display for ActivePane {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Left   => write!(f, "Joint"),
+            Self::Left => write!(f, "Joint"),
             Self::Middle => write!(f, "Unassigned"),
-            Self::Right  => write!(f, "Personal"),
+            Self::Right => write!(f, "Personal"),
             Self::Bottom => write!(f, "Ignored"),
         }
     }
@@ -29,10 +29,10 @@ impl std::fmt::Display for ActivePane {
 /// explicitly "a presented transaction" and the projection back out is trivial.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
-    pub id:           u32,                  // stable per-session row identity
-    pub label:        String,               // pre-formatted display string
-    pub auto_matched: bool,                 // routed here by an auto-assign rule
-    pub txn:          hho_types::Transaction, // the (override-applied) data
+    pub id: u32,                     // stable per-session row identity
+    pub label: String,               // pre-formatted display string
+    pub auto_matched: bool,          // routed here by an auto-assign rule
+    pub txn: hho_types::Transaction, // the (override-applied) data
 }
 
 impl Item {
@@ -89,8 +89,8 @@ pub fn nav_down(items: &[Item], sel: Option<usize>) -> Option<usize> {
 /// or `None` when source is now empty.
 pub fn transfer_item(
     mut source: Vec<Item>,
-    mut dest:   Vec<Item>,
-    sel:        Option<usize>,
+    mut dest: Vec<Item>,
+    sel: Option<usize>,
 ) -> (Vec<Item>, Vec<Item>, Option<usize>) {
     let Some(idx) = sel else {
         return (source, dest, sel);
@@ -115,9 +115,9 @@ pub fn transfer_item(
 /// Target pane for ArrowLeft: Right→Middle→Left→Bottom→Left rotation.
 pub fn pane_left(current: ActivePane) -> ActivePane {
     match current {
-        ActivePane::Left   => ActivePane::Bottom,
+        ActivePane::Left => ActivePane::Bottom,
         ActivePane::Middle => ActivePane::Left,
-        ActivePane::Right  => ActivePane::Middle,
+        ActivePane::Right => ActivePane::Middle,
         ActivePane::Bottom => ActivePane::Left,
     }
 }
@@ -125,9 +125,9 @@ pub fn pane_left(current: ActivePane) -> ActivePane {
 /// Target pane for ArrowRight: Left→Middle→Right→Bottom→Right rotation.
 pub fn pane_right(current: ActivePane) -> ActivePane {
     match current {
-        ActivePane::Left   => ActivePane::Middle,
+        ActivePane::Left => ActivePane::Middle,
         ActivePane::Middle => ActivePane::Right,
-        ActivePane::Right  => ActivePane::Bottom,
+        ActivePane::Right => ActivePane::Bottom,
         ActivePane::Bottom => ActivePane::Right,
     }
 }
@@ -259,8 +259,7 @@ mod tests {
 
     #[test]
     fn transfer_item_last_item_clears_source_selection() {
-        let (new_src, new_dst, new_sel) =
-            transfer_item(items(&["a"]), items(&[]), Some(0));
+        let (new_src, new_dst, new_sel) = transfer_item(items(&["a"]), items(&[]), Some(0));
         assert!(new_src.is_empty());
         assert_eq!(new_dst.len(), 1);
         assert_eq!(new_sel, None);
@@ -268,16 +267,14 @@ mod tests {
 
     #[test]
     fn transfer_item_sel_clamps_when_removing_last_element() {
-        let (_, _, new_sel) =
-            transfer_item(items(&["a", "b", "c"]), items(&[]), Some(2));
+        let (_, _, new_sel) = transfer_item(items(&["a", "b", "c"]), items(&[]), Some(2));
         // Removed index 2 (last); new last is index 1.
         assert_eq!(new_sel, Some(1));
     }
 
     #[test]
     fn transfer_item_noop_when_sel_is_none() {
-        let (new_src, new_dst, new_sel) =
-            transfer_item(items(&["a", "b"]), items(&[]), None);
+        let (new_src, new_dst, new_sel) = transfer_item(items(&["a", "b"]), items(&[]), None);
         assert_eq!(new_src.len(), 2);
         assert_eq!(new_dst.len(), 0);
         assert_eq!(new_sel, None);
@@ -285,8 +282,7 @@ mod tests {
 
     #[test]
     fn transfer_item_noop_when_sel_out_of_range() {
-        let (new_src, new_dst, new_sel) =
-            transfer_item(items(&["a"]), items(&[]), Some(5));
+        let (new_src, new_dst, new_sel) = transfer_item(items(&["a"]), items(&[]), Some(5));
         assert_eq!(new_src.len(), 1);
         assert_eq!(new_dst.len(), 0);
         assert_eq!(new_sel, Some(5));
@@ -294,8 +290,7 @@ mod tests {
 
     #[test]
     fn transfer_item_preserves_remaining_item_order() {
-        let (new_src, _, _) =
-            transfer_item(items(&["a", "b", "c", "d"]), items(&[]), Some(1));
+        let (new_src, _, _) = transfer_item(items(&["a", "b", "c", "d"]), items(&[]), Some(1));
         let labels: Vec<_> = new_src.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, ["a", "c", "d"]);
     }
@@ -404,34 +399,30 @@ mod tests {
 
     #[test]
     fn transfer_item_keeps_dest_sorted_by_date() {
-        let source = vec![
-            Item {
-                id: 1,
-                label: "2026-05-18 │ a".into(),
-                auto_matched: false,
-                txn: hho_types::Transaction {
-                    date: "2026-05-18".into(),
-                    vendor: "".to_string(),
-                    category: "".to_string(),
-                    amount_cents: 100,
-                    direction: hho_types::Direction::Debit,
-                },
-            }
-        ];
-        let dest = vec![
-            Item {
-                id: 2,
-                label: "2026-05-20 │ b".into(),
-                auto_matched: false,
-                txn: hho_types::Transaction {
-                    date: "2026-05-20".into(),
-                    vendor: "".to_string(),
-                    category: "".to_string(),
-                    amount_cents: 200,
-                    direction: hho_types::Direction::Debit,
-                },
-            }
-        ];
+        let source = vec![Item {
+            id: 1,
+            label: "2026-05-18 │ a".into(),
+            auto_matched: false,
+            txn: hho_types::Transaction {
+                date: "2026-05-18".into(),
+                vendor: "".to_string(),
+                category: "".to_string(),
+                amount_cents: 100,
+                direction: hho_types::Direction::Debit,
+            },
+        }];
+        let dest = vec![Item {
+            id: 2,
+            label: "2026-05-20 │ b".into(),
+            auto_matched: false,
+            txn: hho_types::Transaction {
+                date: "2026-05-20".into(),
+                vendor: "".to_string(),
+                category: "".to_string(),
+                amount_cents: 200,
+                direction: hho_types::Direction::Debit,
+            },
+        }];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));
         assert_eq!(new_dst[0].txn.date, "2026-05-18");
         assert_eq!(new_dst[1].txn.date, "2026-05-20");

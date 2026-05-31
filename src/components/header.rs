@@ -1,10 +1,10 @@
 // Custom header component rendering application branding, open actions, recent files dropdown, and quit operations.
 
+use crate::app::handle_open_result;
+use crate::state::AppState;
+use hho_types::Transaction;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::state::AppState;
-use crate::app::handle_open_result;
-use hho_types::Transaction;
 
 /// Extracts filename from path string.
 fn get_filename(path: &str) -> &str {
@@ -51,7 +51,6 @@ fn get_month_name(month: i32) -> &'static str {
     }
 }
 
-
 #[component]
 pub fn Header() -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
@@ -59,14 +58,15 @@ pub fn Header() -> impl IntoView {
 
     // Handles CSV file pick action.
     let on_open = move |_| {
-        if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+        if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some()
+        {
             return;
         }
         state.is_loading_file.set(true);
         state.log("[Header] Open CSV clicked".to_string());
         spawn_local(async move {
             match crate::ipc::pick_csv().await {
-                Ok(r)  => handle_open_result(state, r),
+                Ok(r) => handle_open_result(state, r),
                 Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
             }
             state.is_loading_file.set(false);
@@ -126,8 +126,14 @@ pub fn Header() -> impl IntoView {
         let month_name = get_month_name(month).to_string();
 
         spawn_local(async move {
-            state.log(format!("[Header] Saving Joint transactions to CSV (count={})", txns.len()));
-            if let Err(e) = crate::ipc::save_pane_transactions("Joint".to_string(), month_name, year, txns).await {
+            state.log(format!(
+                "[Header] Saving Joint transactions to CSV (count={})",
+                txns.len()
+            ));
+            if let Err(e) =
+                crate::ipc::save_pane_transactions("Joint".to_string(), month_name, year, txns)
+                    .await
+            {
                 state.log(format!("[Header] Failed to save Joint transactions: {e}"));
             }
         });
@@ -145,9 +151,17 @@ pub fn Header() -> impl IntoView {
         let month_name = get_month_name(month).to_string();
 
         spawn_local(async move {
-            state.log(format!("[Header] Saving Personal transactions to CSV (count={})", txns.len()));
-            if let Err(e) = crate::ipc::save_pane_transactions("Personal".to_string(), month_name, year, txns).await {
-                state.log(format!("[Header] Failed to save Personal transactions: {e}"));
+            state.log(format!(
+                "[Header] Saving Personal transactions to CSV (count={})",
+                txns.len()
+            ));
+            if let Err(e) =
+                crate::ipc::save_pane_transactions("Personal".to_string(), month_name, year, txns)
+                    .await
+            {
+                state.log(format!(
+                    "[Header] Failed to save Personal transactions: {e}"
+                ));
             }
         });
     };

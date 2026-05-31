@@ -2,9 +2,9 @@
 // Derives its own width/height from AppState signals so no size props are
 // required; the parent simply places ResizeHandle components between panes.
 
-use leptos::prelude::*;
 use crate::logic::ActivePane;
 use crate::state::AppState;
+use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -14,12 +14,13 @@ pub fn Pane(
     /// Which logical pane this instance represents.
     pane_id: ActivePane,
     /// Apply bottom-pane CSS variant (top border colour comes from CSS class).
-    #[prop(default = false)] is_bottom: bool,
+    #[prop(default = false)]
+    is_bottom: bool,
 ) -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
 
     let items_sig = state.items_for(pane_id);
-    let sel_sig   = state.sel_for(pane_id);
+    let sel_sig = state.sel_for(pane_id);
     let is_active = move || state.active_pane.get() == pane_id;
 
     // Derive inline style from layout signals.
@@ -30,9 +31,7 @@ pub fn Pane(
         ActivePane::Left => {
             format!("width: {}px; flex: none;", state.left_width.get())
         }
-        ActivePane::Middle => {
-            "flex: 1; min-width: 0;".to_string()
-        }
+        ActivePane::Middle => "flex: 1; min-width: 0;".to_string(),
         ActivePane::Right => {
             format!("width: {}px; flex: none;", state.right_width.get())
         }

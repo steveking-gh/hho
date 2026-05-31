@@ -16,18 +16,18 @@ use hho_types::{AutoAssignRule, Institution, LayoutConfig, OpenResult, Transacti
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_RECENTS:    usize = 5;
-const CONFIG_FILE:    &str  = "hho_user_config.toml";
+const MAX_RECENTS: usize = 5;
+const CONFIG_FILE: &str = "hho_user_config.toml";
 
 // Default layout dimensions (px, logical).
-const DEFAULT_LEFT_W:  f32 = 200.0;
+const DEFAULT_LEFT_W: f32 = 200.0;
 const DEFAULT_RIGHT_W: f32 = 200.0;
-const DEFAULT_BOT_H:   f32 = 200.0;
-const DEFAULT_DBG_H:   f32 = 150.0;
+const DEFAULT_BOT_H: f32 = 200.0;
+const DEFAULT_DBG_H: f32 = 150.0;
 
 // Default window dimensions (logical px).
 const DEFAULT_WIN_W: f64 = 1024.0;
-const DEFAULT_WIN_H: f64 =  700.0;
+const DEFAULT_WIN_H: f64 = 700.0;
 
 // ── User configuration ────────────────────────────────────────────────────────
 
@@ -48,16 +48,16 @@ struct UserConfig {
 
     // ── Pane layout ───────────────────────────────────────────────────────────
     #[serde(skip_serializing_if = "Option::is_none")]
-    left_width: Option<f32>,   // Joint pane width (px)
+    left_width: Option<f32>, // Joint pane width (px)
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    right_width: Option<f32>,  // Personal pane width (px)
+    right_width: Option<f32>, // Personal pane width (px)
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    bottom_h: Option<f32>,     // Ignored pane height (px)
+    bottom_h: Option<f32>, // Ignored pane height (px)
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    debug_h: Option<f32>,      // Debug panel height (px)
+    debug_h: Option<f32>, // Debug panel height (px)
 
     // ── Window geometry ───────────────────────────────────────────────────────
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -93,7 +93,7 @@ fn load_config() -> UserConfig {
         return default;
     }
     let raw = match std::fs::read_to_string(&path) {
-        Ok(s)  => s,
+        Ok(s) => s,
         Err(_) => return UserConfig::default(),
     };
     let mut cfg: UserConfig = toml::from_str(&raw).unwrap_or_default();
@@ -105,7 +105,9 @@ fn load_config() -> UserConfig {
 fn save_config(config: &UserConfig) {
     let path = config_path();
     match toml::to_string_pretty(config) {
-        Ok(s)  => { let _ = std::fs::write(&path, s); }
+        Ok(s) => {
+            let _ = std::fs::write(&path, s);
+        }
         Err(e) => eprintln!("hho: config serialize error: {e}"),
     }
 }
@@ -119,8 +121,6 @@ struct ConfigState {
 // ── IPC types ─────────────────────────────────────────────────────────────────
 
 // OpenResult and LayoutConfig are defined in hho-types (shared with the frontend).
-
-
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -158,26 +158,20 @@ pub fn push_recent(files: &mut Vec<String>, new_path: String) {
     files.truncate(MAX_RECENTS);
 }
 
-
 // ── Shared open logic ─────────────────────────────────────────────────────────
 
 /// Read the CSV, record it in recents, rebuild the menu, then either parse it
 /// with a saved institution (Mapped) or request a new mapping (NeedsMapping).
-fn finalize_open(
-    state: &ConfigState,
-    path:  PathBuf,
-) -> Result<OpenResult, String> {
+fn finalize_open(state: &ConfigState, path: PathBuf) -> Result<OpenResult, String> {
     let (headers, rows) = read_csv_table(&path)?;
-    let fp       = mapping::fingerprint(&headers);
+    let fp = mapping::fingerprint(&headers);
     let path_str = path.to_string_lossy().to_string();
-    let dir_str  = path.parent().map(|p| p.to_string_lossy().to_string());
+    let dir_str = path.parent().map(|p| p.to_string_lossy().to_string());
 
     let mut cfg = state.config.lock().unwrap();
     push_recent(&mut cfg.recent_files, path_str.clone());
     cfg.last_opened_dir = dir_str;
     save_config(&cfg);
-
-
 
     // Known institution → parse rows; unknown → ask the frontend for a mapping.
     let result = match mapping::find_institution(&fp, &cfg.institutions) {
@@ -192,9 +186,9 @@ fn finalize_open(
             }
         }
         None => OpenResult::NeedsMapping {
-            fingerprint:  fp,
-            sample_rows:  rows.iter().take(3).cloned().collect(),
-            suggested:    mapping::suggest_mapping(&headers),
+            fingerprint: fp,
+            sample_rows: rows.iter().take(3).cloned().collect(),
+            suggested: mapping::suggest_mapping(&headers),
             headers,
             pending_path: path_str,
         },
@@ -222,7 +216,9 @@ async fn pick_csv(
 
     // Associates file dialog with calling window as parent owner.
     // Prevents duplicate dialog instances and keeps dialog in focus.
-    let mut builder = window.dialog().file()
+    let mut builder = window
+        .dialog()
+        .file()
         .set_parent(&window)
         .add_filter("CSV files", &["csv", "CSV"]);
     if let Some(dir) = start_dir {
@@ -232,7 +228,8 @@ async fn pick_csv(
     let Some(fp) = builder.blocking_pick_file() else {
         return Ok(OpenResult::Cancelled);
     };
-    let path = fp.as_path()
+    let path = fp
+        .as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
     finalize_open(&state, path)
@@ -240,12 +237,14 @@ async fn pick_csv(
 
 #[tauri::command]
 async fn open_csv(
-    path:  String,
-    _app:  AppHandle,
+    path: String,
+    _app: AppHandle,
     state: State<'_, ConfigState>,
 ) -> Result<OpenResult, String> {
     let pb = PathBuf::from(&path);
-    if !pb.exists() { return Err(format!("file not found: {path}")); }
+    if !pb.exists() {
+        return Err(format!("file not found: {path}"));
+    }
     finalize_open(&state, pb)
 }
 
@@ -253,9 +252,9 @@ async fn open_csv(
 /// Replaces any existing mapping sharing the same header fingerprint.
 #[tauri::command]
 fn save_mapping(
-    institution:  Institution,
+    institution: Institution,
     pending_path: String,
-    state:        State<'_, ConfigState>,
+    state: State<'_, ConfigState>,
 ) -> Result<Vec<Transaction>, String> {
     let (headers, rows) = read_csv_table(Path::new(&pending_path))?;
 
@@ -264,7 +263,8 @@ fn save_mapping(
     inst.fingerprint = mapping::fingerprint(&headers);
 
     let mut cfg = state.config.lock().unwrap();
-    cfg.institutions.retain(|i| i.fingerprint != inst.fingerprint);
+    cfg.institutions
+        .retain(|i| i.fingerprint != inst.fingerprint);
     cfg.institutions.push(inst.clone());
     save_config(&cfg);
 
@@ -280,39 +280,35 @@ fn save_mapping(
 fn get_layout(state: State<'_, ConfigState>) -> LayoutConfig {
     let cfg = state.config.lock().unwrap();
     LayoutConfig {
-        left_width:  cfg.left_width.unwrap_or(DEFAULT_LEFT_W),
+        left_width: cfg.left_width.unwrap_or(DEFAULT_LEFT_W),
         right_width: cfg.right_width.unwrap_or(DEFAULT_RIGHT_W),
-        bottom_h:    cfg.bottom_h.unwrap_or(DEFAULT_BOT_H),
-        debug_h:     cfg.debug_h.unwrap_or(DEFAULT_DBG_H),
+        bottom_h: cfg.bottom_h.unwrap_or(DEFAULT_BOT_H),
+        debug_h: cfg.debug_h.unwrap_or(DEFAULT_DBG_H),
     }
 }
 
 /// Persist pane layout after a drag gesture ends.
 #[tauri::command]
 fn save_layout(
-    left_width:  f32,
+    left_width: f32,
     right_width: f32,
-    bottom_h:    f32,
-    debug_h:     f32,
-    state:       State<'_, ConfigState>,
+    bottom_h: f32,
+    debug_h: f32,
+    state: State<'_, ConfigState>,
 ) {
     let mut cfg = state.config.lock().unwrap();
-    cfg.left_width  = Some(left_width);
+    cfg.left_width = Some(left_width);
     cfg.right_width = Some(right_width);
-    cfg.bottom_h    = Some(bottom_h);
-    cfg.debug_h     = Some(debug_h);
+    cfg.bottom_h = Some(bottom_h);
+    cfg.debug_h = Some(debug_h);
     save_config(&cfg);
 }
 
 /// Persist window dimensions after the OS window is resized.
 #[tauri::command]
-fn save_window_size(
-    width:  f64,
-    height: f64,
-    state:  State<'_, ConfigState>,
-) {
+fn save_window_size(width: f64, height: f64, state: State<'_, ConfigState>) {
     let mut cfg = state.config.lock().unwrap();
-    cfg.window_width  = Some(width);
+    cfg.window_width = Some(width);
     cfg.window_height = Some(height);
     save_config(&cfg);
 }
@@ -333,10 +329,7 @@ fn get_auto_assign_rules(state: State<'_, ConfigState>) -> Vec<AutoAssignRule> {
 
 /// Replaces the persisted list of auto-assign rules and writes the updated configuration to disk.
 #[tauri::command]
-fn save_auto_assign_rules(
-    rules: Vec<AutoAssignRule>,
-    state: State<'_, ConfigState>,
-) {
+fn save_auto_assign_rules(rules: Vec<AutoAssignRule>, state: State<'_, ConfigState>) {
     let mut cfg = state.config.lock().unwrap();
     cfg.auto_assign_rules = rules;
     save_config(&cfg);
@@ -365,7 +358,9 @@ async fn save_pane_transactions(
             .or_else(dirs::home_dir)
     };
 
-    let mut builder = window.dialog().file()
+    let mut builder = window
+        .dialog()
+        .file()
         .set_parent(&window)
         .add_filter("CSV files", &["csv", "CSV"])
         .set_file_name(&default_filename);
@@ -376,7 +371,8 @@ async fn save_pane_transactions(
     let Some(fp) = builder.blocking_save_file() else {
         return Ok(());
     };
-    let path = fp.as_path()
+    let path = fp
+        .as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
 
@@ -390,9 +386,11 @@ async fn save_pane_transactions(
 }
 
 fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), String> {
-    let mut wtr = csv::Writer::from_path(path).map_err(|e| format!("failed to create file: {e}"))?;
+    let mut wtr =
+        csv::Writer::from_path(path).map_err(|e| format!("failed to create file: {e}"))?;
 
-    wtr.write_record(["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
+    wtr.write_record(["Date", "Vendor", "Amount", "Category"])
+        .map_err(|e| format!("failed to write header: {e}"))?;
 
     for t in transactions {
         let amount_str = hho_types::format_cents(hho_types::net_cents(t.amount_cents, t.direction));
@@ -418,9 +416,12 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
     writeln!(file, "TOTAL,{}", hho_types::format_cents(total_cents))
         .map_err(|e| format!("failed to write total: {e}"))?;
 
-    let categories = hho_types::summarize_by_category(
-        transactions.iter().map(|t| (t.category.as_str(), hho_types::net_cents(t.amount_cents, t.direction))),
-    );
+    let categories = hho_types::summarize_by_category(transactions.iter().map(|t| {
+        (
+            t.category.as_str(),
+            hho_types::net_cents(t.amount_cents, t.direction),
+        )
+    }));
 
     for (name, cat_total) in categories {
         // CSV-escape category names that contain a comma or quote.
@@ -430,8 +431,13 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
             name
         };
 
-        writeln!(file, "{},{}", escaped_name, hho_types::format_cents(cat_total))
-            .map_err(|e| format!("failed to write category total: {e}"))?;
+        writeln!(
+            file,
+            "{},{}",
+            escaped_name,
+            hho_types::format_cents(cat_total)
+        )
+        .map_err(|e| format!("failed to write category total: {e}"))?;
     }
 
     Ok(())
@@ -467,15 +473,23 @@ pub fn run() {
                 let _ = win.set_size(tauri::LogicalSize::new(win_w, win_h));
             }
 
-            app.manage(ConfigState { config: Mutex::new(cfg) });
+            app.manage(ConfigState {
+                config: Mutex::new(cfg),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            pick_csv, open_csv, save_mapping,
-            get_layout, save_layout, save_window_size,
-            get_recent_files, exit_app,
+            pick_csv,
+            open_csv,
+            save_mapping,
+            get_layout,
+            save_layout,
+            save_window_size,
+            get_recent_files,
+            exit_app,
             get_auto_assign_rules,
-            save_auto_assign_rules, save_pane_transactions,
+            save_auto_assign_rules,
+            save_pane_transactions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -496,7 +510,7 @@ mod tests {
 
     #[test]
     fn push_recent_deduplicates_existing_entry() {
-        let mut v: Vec<String> = ["a","b","c"].iter().map(|s| s.to_string()).collect();
+        let mut v: Vec<String> = ["a", "b", "c"].iter().map(|s| s.to_string()).collect();
         push_recent(&mut v, "b.csv".to_string());
         assert_eq!(v, vec!["b.csv", "a", "b", "c"]);
     }
@@ -519,24 +533,24 @@ mod tests {
     #[test]
     fn config_roundtrips_through_toml() {
         let original = UserConfig {
-            recent_files:    vec!["a.csv".into(), "b.csv".into()],
+            recent_files: vec!["a.csv".into(), "b.csv".into()],
             last_opened_dir: Some("/home/user/docs".into()),
-            last_saved_dir:  Some("/home/user/saved".into()),
-            left_width:      Some(250.0),
-            right_width:     Some(180.0),
-            bottom_h:        Some(220.0),
-            debug_h:         Some(130.0),
-            window_width:    Some(1200.0),
-            window_height:   Some(800.0),
-            institutions:    vec![],
+            last_saved_dir: Some("/home/user/saved".into()),
+            left_width: Some(250.0),
+            right_width: Some(180.0),
+            bottom_h: Some(220.0),
+            debug_h: Some(130.0),
+            window_width: Some(1200.0),
+            window_height: Some(800.0),
+            institutions: vec![],
             auto_assign_rules: vec![],
         };
-        let toml_str  = toml::to_string_pretty(&original).unwrap();
+        let toml_str = toml::to_string_pretty(&original).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
-        assert_eq!(recovered.recent_files,    original.recent_files);
+        assert_eq!(recovered.recent_files, original.recent_files);
         assert_eq!(recovered.last_opened_dir, original.last_opened_dir);
-        assert_eq!(recovered.left_width,      original.left_width);
-        assert_eq!(recovered.window_width,    original.window_width);
+        assert_eq!(recovered.left_width, original.left_width);
+        assert_eq!(recovered.window_width, original.window_width);
     }
 
     #[test]
@@ -550,9 +564,13 @@ mod tests {
 
     #[test]
     fn read_csv_table_splits_header_and_rows() {
-        let dir  = std::env::temp_dir();
+        let dir = std::env::temp_dir();
         let path = dir.join("hho_table_test.csv");
-        std::fs::write(&path, "Date,Description,Amount\n05/18/2026,STARBUCKS,-5.40\n").unwrap();
+        std::fs::write(
+            &path,
+            "Date,Description,Amount\n05/18/2026,STARBUCKS,-5.40\n",
+        )
+        .unwrap();
         let (headers, rows) = read_csv_table(&path).unwrap();
         assert_eq!(headers, vec!["Date", "Description", "Amount"]);
         assert_eq!(rows.len(), 1);
@@ -563,17 +581,17 @@ mod tests {
     #[test]
     fn config_with_institution_roundtrips_through_toml() {
         let cfg = UserConfig {
-            recent_files:    vec![],
+            recent_files: vec![],
             last_opened_dir: None,
-            last_saved_dir:  None,
-            left_width:      None,
-            right_width:     None,
-            bottom_h:        None,
-            debug_h:         None,
-            window_width:    None,
-            window_height:   None,
+            last_saved_dir: None,
+            left_width: None,
+            right_width: None,
+            bottom_h: None,
+            debug_h: None,
+            window_width: None,
+            window_height: None,
             auto_assign_rules: vec![],
-            institutions:    vec![hho_types::Institution {
+            institutions: vec![hho_types::Institution {
                 name: "Chase".into(),
                 fingerprint: "date,description,amount".into(),
                 date_col: 0,
@@ -586,7 +604,7 @@ mod tests {
                 },
             }],
         };
-        let toml_str  = toml::to_string_pretty(&cfg).unwrap();
+        let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.institutions, cfg.institutions);
     }
@@ -594,16 +612,16 @@ mod tests {
     #[test]
     fn config_with_auto_assign_rules_roundtrips_through_toml() {
         let cfg = UserConfig {
-            recent_files:    vec![],
+            recent_files: vec![],
             last_opened_dir: None,
-            last_saved_dir:  None,
-            left_width:      None,
-            right_width:     None,
-            bottom_h:        None,
-            debug_h:         None,
-            window_width:    None,
-            window_height:   None,
-            institutions:    vec![],
+            last_saved_dir: None,
+            left_width: None,
+            right_width: None,
+            bottom_h: None,
+            debug_h: None,
+            window_width: None,
+            window_height: None,
+            institutions: vec![],
             auto_assign_rules: vec![
                 AutoAssignRule {
                     regex: "STARBUCKS".to_string(),
@@ -617,7 +635,7 @@ mod tests {
                 },
             ],
         };
-        let toml_str  = toml::to_string_pretty(&cfg).unwrap();
+        let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered.auto_assign_rules, cfg.auto_assign_rules);
     }
@@ -625,22 +643,18 @@ mod tests {
     #[test]
     fn save_auto_assign_rules_replaces_all_rules_in_config() {
         let mut cfg = UserConfig {
-            auto_assign_rules: vec![
-                AutoAssignRule {
-                    regex: "OLD".to_string(),
-                    pane: "left".to_string(),
-                    category_override: None,
-                }
-            ],
+            auto_assign_rules: vec![AutoAssignRule {
+                regex: "OLD".to_string(),
+                pane: "left".to_string(),
+                category_override: None,
+            }],
             ..Default::default()
         };
-        let new_rules = vec![
-            AutoAssignRule {
-                regex: "NEW".to_string(),
-                pane: "right".to_string(),
-                category_override: None,
-            }
-        ];
+        let new_rules = vec![AutoAssignRule {
+            regex: "NEW".to_string(),
+            pane: "right".to_string(),
+            category_override: None,
+        }];
         cfg.auto_assign_rules = new_rules.clone();
         assert_eq!(cfg.auto_assign_rules, new_rules);
     }
@@ -677,7 +691,8 @@ mod tests {
         let frontend_files = get_rs_files(&frontend_dir);
         let mut frontend_cmds = HashSet::new();
 
-        let call_re = regex::Regex::new(r#"\b(call|call_unit|invoke_raw)\s*\(\s*"([^"]+)"#).unwrap();
+        let call_re =
+            regex::Regex::new(r#"\b(call|call_unit|invoke_raw)\s*\(\s*"([^"]+)"#).unwrap();
         let re_line_comment = regex::Regex::new(r"//.*").unwrap();
         let re_block_comment = regex::Regex::new(r"(?s)/\*.*?\*/").unwrap();
 
@@ -776,4 +791,3 @@ Travel,-286.97
         let _ = std::fs::remove_file(&path);
     }
 }
-

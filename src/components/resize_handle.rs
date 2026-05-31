@@ -2,8 +2,8 @@
 // Mousedown starts a drag recorded in AppState::drag; the global
 // mousemove handler in app.rs applies the resulting deltas.
 
-use leptos::prelude::*;
 use crate::state::{AppState, DragState, DragTarget};
+use leptos::prelude::*;
 
 /// Orientation of the resize boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -19,13 +19,13 @@ pub fn ResizeHandle(
     /// Which resize boundary this handle represents.
     target: DragTarget,
     /// Visual orientation: Horizontal = col-resize, Vertical = row-resize.
-    dir:    ResizeDir,
+    dir: ResizeDir,
 ) -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
 
     let css_class = match dir {
         ResizeDir::Horizontal => "resize-handle resize-handle-h",
-        ResizeDir::Vertical   => "resize-handle resize-handle-v",
+        ResizeDir::Vertical => "resize-handle resize-handle-v",
     };
 
     // Bottom handle uses the green debug-panel color instead of orange.

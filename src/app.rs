@@ -2,32 +2,32 @@
 // Owns AppState, provides it via context, and registers all global event
 // listeners: keyboard (nav / zoom), mouse (drag-resize), window resize.
 
-use leptos::prelude::*;
 use leptos::ev;
+use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::dto::{OpenResult, PendingMapping};
-use crate::ipc;
-use crate::logic::{ActivePane, nav_up, nav_down, pane_left, pane_right};
-use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 use crate::components::{
+    create_transaction_modal::CreateTransactionModal,
     debug_log::DebugLog,
     header::Header,
     mapping_modal::MappingModal,
     month_modal::MonthModal,
-    rule_editor_modal::RuleEditorModal,
-    rules_modal::RulesModal,
-    create_transaction_modal::CreateTransactionModal,
     pane::Pane,
     resize_handle::{ResizeDir, ResizeHandle},
+    rule_editor_modal::RuleEditorModal,
+    rules_modal::RulesModal,
 };
+use crate::dto::{OpenResult, PendingMapping};
+use crate::ipc;
+use crate::logic::{nav_down, nav_up, pane_left, pane_right, ActivePane, Item};
+use crate::state::{AppState, DragState, DragTarget, PANE_MIN_H, PANE_MIN_W};
 
 // ── Scale constants ───────────────────────────────────────────────────────────
 
-const SCALE_MIN:     f32 = 7.0;
-const SCALE_MAX:     f32 = 20.0;
-const SCALE_STEP:    f32 = 1.0;
+const SCALE_MIN: f32 = 7.0;
+const SCALE_MAX: f32 = 20.0;
+const SCALE_STEP: f32 = 1.0;
 const SCALE_DEFAULT: f32 = 10.0;
 
 // Minimum interval between window-size saves (ms) — simple rate-limiter.
@@ -45,7 +45,9 @@ fn apply_font_scale(px: f32) {
         .and_then(|d| d.document_element())
         .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
         .map(|html| {
-            let _ = html.style().set_property("font-size", &format!("{:.1}px", px));
+            let _ = html
+                .style()
+                .set_property("font-size", &format!("{:.1}px", px));
         });
 }
 
@@ -74,17 +76,28 @@ fn set_drag_cursor(cursor: &str) {
 /// modal, or log a cancellation.
 pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
     match result {
-        OpenResult::Mapped { institution, transactions } => {
+        OpenResult::Mapped {
+            institution,
+            transactions,
+        } => {
             state.populate_transactions(&institution, transactions);
         }
         OpenResult::NeedsMapping {
-            fingerprint, headers, sample_rows, pending_path, suggested,
+            fingerprint,
+            headers,
+            sample_rows,
+            pending_path,
+            suggested,
         } => {
             state.log(format!(
                 "[File] unknown institution (fingerprint=\"{fingerprint}\") → opening mapping modal"
             ));
             state.pending_mapping.set(Some(PendingMapping {
-                fingerprint, headers, sample_rows, pending_path, suggested,
+                fingerprint,
+                headers,
+                sample_rows,
+                pending_path,
+                suggested,
             }));
         }
         OpenResult::Cancelled => state.log("[File] open cancelled".to_string()),
@@ -102,6 +115,69 @@ fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types
         }
     }
     None
+}
+
+/// Properties parsed for initializing the auto-assign rule editor modal.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssignModalProps {
+    pub preview_vendor: String,
+    pub initial_regex: String,
+    pub initial_pane: String,
+    pub initial_category_override: String,
+}
+
+/// Builds the initialization properties for the auto-assign rule editor modal.
+pub fn build_assign_modal_props(state: AppState, item: &Item) -> AssignModalProps {
+    let vendor = item.txn.vendor.clone();
+    let escaped_vendor = crate::logic::escape_regex(&vendor);
+    let matched_info = find_matching_rule(state, &vendor);
+    let initial_regex = matched_info
+        .as_ref()
+        .map(|(_, r)| r.regex.clone())
+        .unwrap_or_else(|| escaped_vendor.clone());
+    let initial_pane = matched_info
+        .as_ref()
+        .map(|(_, r)| r.pane.clone())
+        .unwrap_or_else(|| "left".to_string());
+    let initial_category_override = matched_info
+        .as_ref()
+        .map(|(_, r)| r.category_override.clone().unwrap_or_default())
+        .unwrap_or_default();
+
+    AssignModalProps {
+        preview_vendor: vendor,
+        initial_regex,
+        initial_pane,
+        initial_category_override,
+    }
+}
+
+/// Saves an auto-assign rule to the persistent configuration.
+pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor: &str) {
+    let matched_info = find_matching_rule(state, vendor);
+    let mut rules = state.auto_assign_rules.get_untracked();
+    if let Some((idx, _)) = matched_info {
+        if idx < rules.len() {
+            rules[idx] = rule.clone();
+        }
+    } else {
+        rules.push(rule.clone());
+    }
+
+    state.log(format!(
+        "[AutoAssign] saving {} rules: regex=\"{}\" target={}",
+        rules.len(),
+        rule.regex,
+        rule.pane
+    ));
+
+    if let Err(e) = crate::ipc::save_auto_assign_rules(rules.clone()).await {
+        state.log(format!("[AutoAssign] failed to save rules list: {e}"));
+    } else {
+        state.auto_assign_rules.set(rules);
+        state.apply_month_filter();
+    }
+    state.assign_modal_item.set(None);
 }
 
 // ── Layout restore ────────────────────────────────────────────────────────────
@@ -141,14 +217,20 @@ pub fn App() -> impl IntoView {
 
     // ── Global mouse-move handler (drag-resize) ───────────────────────────────
     let move_handle = window_event_listener(ev::mousemove, move |ev| {
-        let Some(drag) = state.drag.get_untracked() else { return };
+        let Some(drag) = state.drag.get_untracked() else {
+            return;
+        };
 
         let cx = ev.client_x() as f32;
         let cy = ev.client_y() as f32;
         let dx = cx - drag.last_x;
         let dy = cy - drag.last_y;
 
-        state.drag.set(Some(DragState { last_x: cx, last_y: cy, ..drag }));
+        state.drag.set(Some(DragState {
+            last_x: cx,
+            last_y: cy,
+            ..drag
+        }));
 
         match drag.target {
             DragTarget::LeftHandle => {
@@ -165,7 +247,7 @@ pub fn App() -> impl IntoView {
             }
             DragTarget::BottomHandle => {
                 let new_bot = (state.bottom_h.get_untracked() + dy).max(PANE_MIN_H);
-                let new_dbg = (state.debug_h.get_untracked()  - dy).max(PANE_MIN_H);
+                let new_dbg = (state.debug_h.get_untracked() - dy).max(PANE_MIN_H);
                 state.bottom_h.set(new_bot);
                 state.debug_h.set(new_dbg);
             }
@@ -174,14 +256,16 @@ pub fn App() -> impl IntoView {
 
     // ── Global mouse-up handler (end drag, save layout) ───────────────────────
     let up_handle = window_event_listener(ev::mouseup, move |_ev| {
-        let Some(drag) = state.drag.get_untracked() else { return };
+        let Some(drag) = state.drag.get_untracked() else {
+            return;
+        };
         state.drag.set(None);
         set_drag_cursor("");
 
-        let left_w  = state.left_width.get_untracked();
+        let left_w = state.left_width.get_untracked();
         let right_w = state.right_width.get_untracked();
-        let bot_h   = state.bottom_h.get_untracked();
-        let dbg_h   = state.debug_h.get_untracked();
+        let bot_h = state.bottom_h.get_untracked();
+        let dbg_h = state.debug_h.get_untracked();
 
         state.log(format!(
             "[Drag] end {:?} → left={left_w:.0}px right={right_w:.0}px bottom={bot_h:.0}px debug={dbg_h:.0}px  (saving…)",
@@ -195,9 +279,9 @@ pub fn App() -> impl IntoView {
 
     // ── Global key-down handler ───────────────────────────────────────────────
     let key_handle = window_event_listener(ev::keydown, move |ev| {
-        let key   = ev.key();
+        let key = ev.key();
         let shift = ev.shift_key();
-        let ctrl  = ev.ctrl_key();
+        let ctrl = ev.ctrl_key();
 
         // ── Ctrl+zoom ─────────────────────────────────────────────────────────
         if ctrl && matches!(key.as_str(), "=" | "+" | "-" | "0") {
@@ -205,8 +289,8 @@ pub fn App() -> impl IntoView {
             let current = state.font_scale.get_untracked();
             let (new_scale, action) = match key.as_str() {
                 "=" | "+" => ((current + SCALE_STEP).min(SCALE_MAX), "zoom in"),
-                "-"       => ((current - SCALE_STEP).max(SCALE_MIN), "zoom out"),
-                _         => (SCALE_DEFAULT,                           "zoom reset"),
+                "-" => ((current - SCALE_STEP).max(SCALE_MIN), "zoom out"),
+                _ => (SCALE_DEFAULT, "zoom reset"),
             };
             state.font_scale.set(new_scale);
             apply_font_scale(new_scale);
@@ -220,14 +304,16 @@ pub fn App() -> impl IntoView {
         if ctrl && (key.eq_ignore_ascii_case("o") || key.eq_ignore_ascii_case("q")) {
             ev.prevent_default();
             if key.eq_ignore_ascii_case("o") {
-                if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+                if state.is_loading_file.get_untracked()
+                    || state.pending_mapping.get_untracked().is_some()
+                {
                     return;
                 }
                 state.is_loading_file.set(true);
                 state.log("[Shortcut] Ctrl+O → invoking pick_csv".to_string());
                 spawn_local(async move {
                     match ipc::pick_csv().await {
-                        Ok(r)  => handle_open_result(state, r),
+                        Ok(r) => handle_open_result(state, r),
                         Err(e) => state.log(format!("[File] pick_csv failed: {e}")),
                     }
                     state.is_loading_file.set(false);
@@ -272,7 +358,10 @@ pub fn App() -> impl IntoView {
         }
 
         // ── Arrow-key guard ───────────────────────────────────────────────────
-        if !matches!(key.as_str(), "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") {
+        if !matches!(
+            key.as_str(),
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+        ) {
             return;
         }
 
@@ -282,22 +371,22 @@ pub fn App() -> impl IntoView {
         let prefix = format!(
             "[KeyDown] {shift_str}{key:<14} active={pane:<14} sel={sel:?}",
             shift_str = if shift { "Shift+" } else { "" },
-            key       = key,
-            pane      = pane.to_string(),
-            sel       = state.sel_for(pane).get_untracked(),
+            key = key,
+            pane = pane.to_string(),
+            sel = state.sel_for(pane).get_untracked(),
         );
 
         let detail: String = match (shift, key.as_str()) {
             (false, "ArrowUp") => {
-                let items   = state.items_for(pane).get_untracked();
-                let sel     = state.sel_for(pane).get_untracked();
+                let items = state.items_for(pane).get_untracked();
+                let sel = state.sel_for(pane).get_untracked();
                 let new_sel = nav_up(&items, sel);
                 state.sel_for(pane).set(new_sel);
                 format!("nav up → sel={:?}", new_sel)
             }
             (false, "ArrowDown") => {
-                let items   = state.items_for(pane).get_untracked();
-                let sel     = state.sel_for(pane).get_untracked();
+                let items = state.items_for(pane).get_untracked();
+                let sel = state.sel_for(pane).get_untracked();
                 let new_sel = nav_down(&items, sel);
                 state.sel_for(pane).set(new_sel);
                 format!("nav down → sel={:?}", new_sel)
@@ -305,25 +394,31 @@ pub fn App() -> impl IntoView {
             (false, "ArrowLeft") => {
                 let next = pane_left(pane);
                 state.active_pane.set(next);
-                if next == pane { "switch left → no-op".into() }
-                else            { format!("switch left → active=\"{}\"", next) }
+                if next == pane {
+                    "switch left → no-op".into()
+                } else {
+                    format!("switch left → active=\"{}\"", next)
+                }
             }
             (false, "ArrowRight") => {
                 let next = pane_right(pane);
                 state.active_pane.set(next);
-                if next == pane { "switch right → no-op".into() }
-                else            { format!("switch right → active=\"{}\"", next) }
+                if next == pane {
+                    "switch right → no-op".into()
+                } else {
+                    format!("switch right → active=\"{}\"", next)
+                }
             }
             (true, "ArrowLeft") => match pane {
                 ActivePane::Middle => state.transfer(ActivePane::Middle, ActivePane::Left),
-                ActivePane::Right  => state.transfer(ActivePane::Right,  ActivePane::Middle),
-                ActivePane::Left   => "no-op: no pane left of Joint".into(),
+                ActivePane::Right => state.transfer(ActivePane::Right, ActivePane::Middle),
+                ActivePane::Left => "no-op: no pane left of Joint".into(),
                 ActivePane::Bottom => "no-op: Ignored has no left neighbor".into(),
             },
             (true, "ArrowRight") => match pane {
-                ActivePane::Left   => state.transfer(ActivePane::Left,   ActivePane::Middle),
+                ActivePane::Left => state.transfer(ActivePane::Left, ActivePane::Middle),
                 ActivePane::Middle => state.transfer(ActivePane::Middle, ActivePane::Right),
-                ActivePane::Right  => "no-op: no pane right of Personal".into(),
+                ActivePane::Right => "no-op: no pane right of Personal".into(),
                 ActivePane::Bottom => "no-op: Ignored has no right neighbor".into(),
             },
             (true, "ArrowDown") => match pane {
@@ -348,16 +443,28 @@ pub fn App() -> impl IntoView {
     }
 
     let resize_handle = window_event_listener(ev::resize, move |_ev| {
-        let now  = js_sys::Date::now();
+        let now = js_sys::Date::now();
         let last = LAST_WIN_SAVE.with(|c| c.get());
-        if now - last < WIN_SAVE_INTERVAL_MS { return; }
+        if now - last < WIN_SAVE_INTERVAL_MS {
+            return;
+        }
         LAST_WIN_SAVE.with(|c| c.set(now));
 
         let Some(w) = web_sys::window() else { return };
-        let width  = w.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1024.0);
-        let height = w.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(700.0);
+        let width = w
+            .inner_width()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or(1024.0);
+        let height = w
+            .inner_height()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or(700.0);
 
-        state.log(format!("[Window] resize → {width:.0}×{height:.0} (saving…)"));
+        state.log(format!(
+            "[Window] resize → {width:.0}×{height:.0} (saving…)"
+        ));
 
         spawn_local(async move {
             ipc::save_window_size(width, height).await;
@@ -372,16 +479,14 @@ pub fn App() -> impl IntoView {
     });
 
     // Mirror the drag signal to a global cursor so it stays correct off-handle.
-    Effect::new(move || {
-        match state.drag.get() {
-            None => set_drag_cursor(""),
-            Some(drag) => {
-                let cursor = match drag.target {
-                    DragTarget::LeftHandle | DragTarget::RightHandle => "col-resize",
-                    DragTarget::TopHandle  | DragTarget::BottomHandle => "row-resize",
-                };
-                set_drag_cursor(cursor);
-            }
+    Effect::new(move || match state.drag.get() {
+        None => set_drag_cursor(""),
+        Some(drag) => {
+            let cursor = match drag.target {
+                DragTarget::LeftHandle | DragTarget::RightHandle => "col-resize",
+                DragTarget::TopHandle | DragTarget::BottomHandle => "row-resize",
+            };
+            set_drag_cursor(cursor);
         }
     });
 
@@ -410,38 +515,12 @@ pub fn App() -> impl IntoView {
 
             // Renders the auto-assign modal when assigning an item.
             {move || state.assign_modal_item.get().map(|item| {
-                let vendor = item.txn.vendor.clone();
-                let escaped_vendor = crate::logic::escape_regex(&vendor);
-                let matched_info = find_matching_rule(state, &vendor);
-                let initial_regex = matched_info.as_ref().map(|(_, r)| r.regex.clone()).unwrap_or_else(|| escaped_vendor.clone());
-                let initial_pane = matched_info.as_ref().map(|(_, r)| r.pane.clone()).unwrap_or_else(|| "left".to_string());
-                let initial_category_override = matched_info.as_ref().map(|(_, r)| r.category_override.clone().unwrap_or_default()).unwrap_or_default();
-
-                let matched_info_clone = matched_info.clone();
+                let props = build_assign_modal_props(state, &item);
+                let vendor = props.preview_vendor.clone();
                 let on_save = move |rule: hho_types::AutoAssignRule| {
-                    let matched_info = matched_info_clone.clone();
+                    let vendor = vendor.clone();
                     spawn_local(async move {
-                        let mut rules = state.auto_assign_rules.get_untracked();
-                        if let Some((idx, _)) = matched_info {
-                            if idx < rules.len() {
-                                rules[idx] = rule.clone();
-                            }
-                        } else {
-                            rules.push(rule.clone());
-                        }
-
-                        state.log(format!(
-                            "[AutoAssign] saving {} rules: regex=\"{}\" target={}",
-                            rules.len(), rule.regex, rule.pane
-                        ));
-
-                        if let Err(e) = crate::ipc::save_auto_assign_rules(rules.clone()).await {
-                            state.log(format!("[AutoAssign] failed to save rules list: {e}"));
-                        } else {
-                            state.auto_assign_rules.set(rules);
-                            state.apply_month_filter();
-                        }
-                        state.assign_modal_item.set(None);
+                        save_rule(state, rule, &vendor).await;
                     });
                 };
                 let on_cancel = move || {
@@ -449,10 +528,10 @@ pub fn App() -> impl IntoView {
                 };
                 view! {
                     <RuleEditorModal
-                        preview_vendor=vendor
-                        initial_regex=initial_regex
-                        initial_pane=initial_pane
-                        initial_category_override=initial_category_override
+                        preview_vendor=props.preview_vendor
+                        initial_regex=props.initial_regex
+                        initial_pane=props.initial_pane
+                        initial_category_override=props.initial_category_override
                         on_save=on_save
                         on_cancel=on_cancel
                     />
@@ -503,5 +582,35 @@ mod tests {
 
         let match3 = find_matching_rule(state, "GOOGLE");
         assert!(match3.is_none());
+    }
+
+    #[test]
+    fn test_build_assign_modal_props_populates_correctly() {
+        let state = AppState::new();
+        state.auto_assign_rules.set(vec![hho_types::AutoAssignRule {
+            regex: "STARBUCKS.*".to_string(),
+            pane: "left".to_string(),
+            category_override: Some("Coffee".to_string()),
+        }]);
+
+        let item = Item {
+            id: 1,
+            label: "".to_string(),
+            auto_matched: true,
+            txn: crate::dto::Transaction {
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS COFFEE".to_string(),
+                category: "Uncategorized".to_string(),
+                amount_cents: 100,
+                direction: crate::dto::Direction::Debit,
+            },
+        };
+
+        // Verifies that properties populate correctly from matching rules.
+        let props = build_assign_modal_props(state, &item);
+        assert_eq!(props.preview_vendor, "STARBUCKS COFFEE");
+        assert_eq!(props.initial_regex, "STARBUCKS.*");
+        assert_eq!(props.initial_pane, "left");
+        assert_eq!(props.initial_category_override, "Coffee");
     }
 }

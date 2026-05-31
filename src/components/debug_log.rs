@@ -1,8 +1,8 @@
 // Scrollable debug log panel.
 // Height driven by the debug_h signal so the resize handle above it works.
 
-use leptos::prelude::*;
 use crate::state::AppState;
+use leptos::prelude::*;
 
 #[component]
 pub fn DebugLog() -> impl IntoView {

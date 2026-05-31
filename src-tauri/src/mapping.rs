@@ -98,14 +98,14 @@ pub fn parse_amount_cents(raw: &str) -> Option<i64> {
 
 /// Common institution date formats, tried in order.
 const DATE_FORMATS: &[&str] = &[
-    "%m/%d/%Y", // 05/18/2026
-    "%m-%d-%Y", // 05-18-2026
-    "%Y-%m-%d", // 2026-05-18
-    "%Y/%m/%d", // 2026/05/18
-    "%d-%b-%Y", // 18-May-2026
-    "%d %b %Y", // 18 May 2026
+    "%m/%d/%Y",  // 05/18/2026
+    "%m-%d-%Y",  // 05-18-2026
+    "%Y-%m-%d",  // 2026-05-18
+    "%Y/%m/%d",  // 2026/05/18
+    "%d-%b-%Y",  // 18-May-2026
+    "%d %b %Y",  // 18 May 2026
     "%b %d, %Y", // May 18, 2026
-    "%m/%d/%y", // 05/18/26
+    "%m/%d/%y",  // 05/18/26
 ];
 
 /// Parse a date string into canonical "YYYY-MM-DD" by trying each known format.
@@ -176,7 +176,10 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
     let vendor = row.get(inst.vendor_col)?.trim().to_string();
     let (amount_cents, direction) = resolve_amount(&inst.amount, row)?;
     let category = match inst.category_col {
-        Some(col) => row.get(col).map(|s| s.trim().to_string()).unwrap_or_default(),
+        Some(col) => row
+            .get(col)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default(),
         None => String::new(),
     };
     Some(Transaction {
@@ -206,9 +209,12 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
         .or_else(|| find_col(headers, &["date"]))
         .unwrap_or(0);
 
-    let vendor_col = find_col(headers, &["description", "payee", "merchant", "vendor", "name"])
-        .or_else(|| find_col(headers, &["memo"]))
-        .unwrap_or(0);
+    let vendor_col = find_col(
+        headers,
+        &["description", "payee", "merchant", "vendor", "name"],
+    )
+    .or_else(|| find_col(headers, &["memo"]))
+    .unwrap_or(0);
 
     let amount_col = find_col(headers, &["amount", "amt"]).unwrap_or(0);
     let type_col = find_col(headers, &["type"]);
@@ -216,7 +222,9 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
 
     // Hide every column not used as date, vendor, amount, or category by default.
     let ignore_cols = (0..headers.len())
-        .filter(|i| *i != date_col && *i != vendor_col && *i != amount_col && Some(*i) != category_col)
+        .filter(|i| {
+            *i != date_col && *i != vendor_col && *i != amount_col && Some(*i) != category_col
+        })
         .collect();
 
     SuggestedMapping {
@@ -336,7 +344,13 @@ mod tests {
     #[test]
     fn chase_sale_is_debit() {
         let r = row(&[
-            "05/18/2026", "05/19/2026", "BUDGET RENT A CAR", "Travel", "Sale", "-286.97", "",
+            "05/18/2026",
+            "05/19/2026",
+            "BUDGET RENT A CAR",
+            "Travel",
+            "Sale",
+            "-286.97",
+            "",
         ]);
         let t = parse_row(&chase(), &r).unwrap();
         assert_eq!(t.date, "2026-05-18");
@@ -349,7 +363,13 @@ mod tests {
     #[test]
     fn chase_payment_is_credit() {
         let r = row(&[
-            "04/22/2026", "04/22/2026", "AUTOMATIC PAYMENT - THANK", "", "Payment", "3367.17", "",
+            "04/22/2026",
+            "04/22/2026",
+            "AUTOMATIC PAYMENT - THANK",
+            "",
+            "Payment",
+            "3367.17",
+            "",
         ]);
         let t = parse_row(&chase(), &r).unwrap();
         assert_eq!(t.amount_cents, 336717);
@@ -369,8 +389,14 @@ mod tests {
         };
         let debit = row(&["x", "y", "50.00", "debit"]); // case-insensitive
         let credit = row(&["x", "y", "50.00", "CR"]);
-        assert_eq!(resolve_amount(&scheme, &debit), Some((5000, Direction::Debit)));
-        assert_eq!(resolve_amount(&scheme, &credit), Some((5000, Direction::Credit)));
+        assert_eq!(
+            resolve_amount(&scheme, &debit),
+            Some((5000, Direction::Debit))
+        );
+        assert_eq!(
+            resolve_amount(&scheme, &credit),
+            Some((5000, Direction::Credit))
+        );
     }
 
     #[test]
@@ -397,7 +423,13 @@ mod tests {
     #[test]
     fn suggest_mapping_picks_chase_columns() {
         let h = row(&[
-            "Transaction Date", "Post Date", "Description", "Category", "Type", "Amount", "Memo",
+            "Transaction Date",
+            "Post Date",
+            "Description",
+            "Category",
+            "Type",
+            "Amount",
+            "Memo",
         ]);
         let s = suggest_mapping(&h);
         assert_eq!(s.date_col, 0);
