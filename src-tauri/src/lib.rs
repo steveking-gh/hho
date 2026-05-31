@@ -331,17 +331,6 @@ fn get_auto_assign_rules(state: State<'_, ConfigState>) -> Vec<AutoAssignRule> {
     cfg.auto_assign_rules.clone()
 }
 
-/// Appends a new auto-assign rule to the configuration and saves it to disk.
-#[tauri::command]
-fn save_auto_assign_rule(
-    rule:  AutoAssignRule,
-    state: State<'_, ConfigState>,
-) {
-    let mut cfg = state.config.lock().unwrap();
-    cfg.auto_assign_rules.push(rule);
-    save_config(&cfg);
-}
-
 /// Replaces the persisted list of auto-assign rules and writes the updated configuration to disk.
 #[tauri::command]
 fn save_auto_assign_rules(
@@ -509,7 +498,7 @@ pub fn run() {
             pick_csv, open_csv, save_mapping,
             get_layout, save_layout, save_window_size,
             get_recent_files, exit_app,
-            get_auto_assign_rules, save_auto_assign_rule,
+            get_auto_assign_rules,
             save_auto_assign_rules, save_pane_transactions,
         ])
         .run(tauri::generate_context!())

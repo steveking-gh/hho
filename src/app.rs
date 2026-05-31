@@ -109,7 +109,19 @@ pub(crate) fn get_vendor_for_item(state: AppState, item: &Item) -> String {
     }
 }
 
-
+/// Searches for an existing auto-assign rule matching the vendor name.
+fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types::AutoAssignRule)> {
+    let rules = state.auto_assign_rules.get_untracked();
+    for (idx, r) in rules.iter().enumerate() {
+        let anchored = format!("^(?:{})$", r.regex);
+        if let Ok(re) = regex::Regex::new(&anchored) {
+            if re.is_match(vendor) {
+                return Some((idx, r.clone()));
+            }
+        }
+    }
+    None
+}
 
 // ── Layout restore ────────────────────────────────────────────────────────────
 
@@ -411,16 +423,33 @@ pub fn App() -> impl IntoView {
             {move || state.assign_modal_item.get().map(|item| {
                 let vendor = get_vendor_for_item(state, &item);
                 let escaped_vendor = crate::logic::escape_regex(&vendor);
+                let matched_info = find_matching_rule(state, &vendor);
+                let initial_regex = matched_info.as_ref().map(|(_, r)| r.regex.clone()).unwrap_or_else(|| escaped_vendor.clone());
+                let initial_pane = matched_info.as_ref().map(|(_, r)| r.pane.clone()).unwrap_or_else(|| "left".to_string());
+                let initial_category_override = matched_info.as_ref().map(|(_, r)| r.category_override.clone().unwrap_or_default()).unwrap_or_default();
+
+                let matched_info_clone = matched_info.clone();
                 let on_save = move |rule: hho_types::AutoAssignRule| {
+                    let matched_info = matched_info_clone.clone();
                     spawn_local(async move {
-                        state.log(format!(
-                            "[AutoAssign] saving rule: regex=\"{}\" target={}",
-                            rule.regex, rule.pane
-                        ));
-                        if let Err(e) = crate::ipc::save_auto_assign_rule(rule.clone()).await {
-                            state.log(format!("[AutoAssign] failed to save rule: {e}"));
+                        let mut rules = state.auto_assign_rules.get_untracked();
+                        if let Some((idx, _)) = matched_info {
+                            if idx < rules.len() {
+                                rules[idx] = rule.clone();
+                            }
                         } else {
-                            state.auto_assign_rules.update(|rules| rules.push(rule));
+                            rules.push(rule.clone());
+                        }
+
+                        state.log(format!(
+                            "[AutoAssign] saving {} rules: regex=\"{}\" target={}",
+                            rules.len(), rule.regex, rule.pane
+                        ));
+
+                        if let Err(e) = crate::ipc::save_auto_assign_rules(rules.clone()).await {
+                            state.log(format!("[AutoAssign] failed to save rules list: {e}"));
+                        } else {
+                            state.auto_assign_rules.set(rules);
                             state.apply_month_filter();
                         }
                         state.assign_modal_item.set(None);
@@ -432,9 +461,9 @@ pub fn App() -> impl IntoView {
                 view! {
                     <RuleEditorModal
                         preview_vendor=vendor
-                        initial_regex=escaped_vendor
-                        initial_pane="left".to_string()
-                        initial_category_override="".to_string()
+                        initial_regex=initial_regex
+                        initial_pane=initial_pane
+                        initial_category_override=initial_category_override
                         on_save=on_save
                         on_cancel=on_cancel
                     />
@@ -447,5 +476,76 @@ pub fn App() -> impl IntoView {
             // Renders the manual transaction creation modal when open.
             {move || state.is_create_transaction_modal_open.get().then(|| view! { <CreateTransactionModal /> })}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_state() -> AppState {
+        AppState {
+            active_pane:  RwSignal::new(ActivePane::Middle),
+            left_items:   RwSignal::new(vec![]),
+            middle_items: RwSignal::new(vec![]),
+            right_items:  RwSignal::new(vec![]),
+            bottom_items: RwSignal::new(vec![]),
+            left_sel:     RwSignal::new(None),
+            middle_sel:   RwSignal::new(None),
+            right_sel:    RwSignal::new(None),
+            bottom_sel:   RwSignal::new(None),
+            debug_log:    RwSignal::new(vec![]),
+            font_scale:   RwSignal::new(10.0),
+            left_width:   RwSignal::new(200.0),
+            right_width:  RwSignal::new(200.0),
+            bottom_h:     RwSignal::new(200.0),
+            debug_h:      RwSignal::new(150.0),
+            drag:         RwSignal::new(None),
+            pending_mapping: RwSignal::new(None),
+            recent_files: RwSignal::new(vec![]),
+            selected_year: RwSignal::new(2026),
+            selected_month: RwSignal::new(5),
+            raw_transactions: RwSignal::new(vec![]),
+            current_institution: RwSignal::new(None),
+            is_month_modal_open: RwSignal::new(false),
+            is_loading_file: RwSignal::new(false),
+            auto_assign_rules: RwSignal::new(vec![]),
+            assign_modal_item: RwSignal::new(None),
+            is_rules_modal_open: RwSignal::new(false),
+            is_create_transaction_modal_open: RwSignal::new(false),
+        }
+    }
+
+    #[test]
+    fn test_find_matching_rule_returns_correct_indices() {
+        let state = create_test_state();
+        state.auto_assign_rules.set(vec![
+            hho_types::AutoAssignRule {
+                regex: "STARBUCKS.*".to_string(),
+                pane: "left".to_string(),
+                category_override: Some("Coffee".to_string()),
+            },
+            hho_types::AutoAssignRule {
+                regex: "NETFLIX".to_string(),
+                pane: "right".to_string(),
+                category_override: None,
+            },
+        ]);
+
+        // Verify matches are found with correct indices
+        let match1 = find_matching_rule(state, "STARBUCKS COFFEE");
+        assert!(match1.is_some());
+        let (idx1, rule1) = match1.unwrap();
+        assert_eq!(idx1, 0);
+        assert_eq!(rule1.pane, "left");
+
+        let match2 = find_matching_rule(state, "NETFLIX");
+        assert!(match2.is_some());
+        let (idx2, rule2) = match2.unwrap();
+        assert_eq!(idx2, 1);
+        assert_eq!(rule2.pane, "right");
+
+        let match3 = find_matching_rule(state, "GOOGLE");
+        assert!(match3.is_none());
     }
 }
