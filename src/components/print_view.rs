@@ -1,4 +1,10 @@
-// Printable view component rendering selected transaction list.
+// Printable view for a pane's transactions (Date / Vendor / Amount / Category
+// with per-category subtotals and a grand total).
+//
+// Always mounted, but renders nothing until `print_target` is Some — the Pane's
+// print button sets it, then triggers `window.print()` (see pane.rs). A
+// `@media print` block in styles.css hides the app chrome and shows only this
+// view, so the printed page / "Save as PDF" output contains just the table.
 
 use crate::logic::ActivePane;
 use crate::state::AppState;

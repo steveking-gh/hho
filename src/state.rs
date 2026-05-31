@@ -6,12 +6,22 @@ use crate::logic::{classify_transactions, transfer_item, ActivePane, Item};
 use leptos::prelude::*;
 use std::cell::Cell;
 
+// ── Global state handle (non-reactive / async contexts) ──────────────────────
+//
+// The IPC layer (`crate::ipc`) mirrors every request/response into the debug log,
+// but those wrappers run outside any component and lack `use_context` access to
+// AppState. This thread-local holds the single AppState so `ipc.rs` can reach the
+// logger. Sound here because the app is single-threaded WASM, AppState is `Copy`,
+// and the cell is written exactly once in `AppState::new()`.
+//
+// Trade-off: a hidden global dependency. Prefer passing state explicitly; this
+// exists only for the cross-cutting logging concern. Narrowing it to a logger
+// handle (just the debug-log signals) would shrink the global surface.
 thread_local! {
-    // Global state cell for asynchronous or non-reactive context access.
     static GLOBAL_STATE: Cell<Option<AppState>> = const { Cell::new(None) };
 }
 
-/// Retrieves the global AppState instance.
+/// Returns the process-global AppState, if one has been constructed.
 pub fn get_global_state() -> Option<AppState> {
     GLOBAL_STATE.with(|g| g.get())
 }
@@ -146,7 +156,13 @@ impl AppState {
         state
     }
 
-    /// Checks if any modal is currently open to block header and main actions.
+    /// True while a modal/overlay is open; used to gate header and main actions.
+    ///
+    /// NOTE: despite the name, this currently checks ONLY `pending_mapping`. The
+    /// assign / month / rules / create-transaction modals are not covered, so
+    /// header buttons and Ctrl+O are *not* blocked while those are open. The
+    /// keydown handler in app.rs checks all of them separately — the two lists
+    /// should be unified here so the gating is consistent.
     pub fn any_modal_open(self) -> bool {
         self.pending_mapping.get_untracked().is_some()
     }

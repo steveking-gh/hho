@@ -86,9 +86,12 @@ pub fn Pane(
                             let print_target = state.print_target;
                             let handle_print = move |e: leptos::ev::MouseEvent| {
                                 e.stop_propagation();
+                                // Setting print_target renders <PrintView> into the DOM.
                                 print_target.set(Some(pane_id));
                                 if let Some(w) = web_sys::window() {
-                                    // Schedules the browser print trigger.
+                                    // Defer window.print() to the next animation frame so the
+                                    // print layout has painted before the dialog snapshots the
+                                    // page; clear the target afterward to remove that layout.
                                     let cb = wasm_bindgen::closure::Closure::once_into_js(move || {
                                         if let Some(w) = web_sys::window() {
                                             let _ = w.print();

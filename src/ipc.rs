@@ -3,6 +3,13 @@
 // Each backend command has exactly one wrapper here: the command-name string and
 // argument shape live in a single place, and every call site is fully typed.
 // A wrong field name or return type is now a compile error, not a runtime one.
+//
+// Every wrapper also mirrors its request, response, and any error into the debug
+// log via the global AppState handle (`crate::state::get_global_state`). The
+// fire-and-forget wrappers (save_layout, save_window_size, exit_app) currently
+// repeat that logging inline; a `call_discard` helper could collapse them.
+// NOTE: responses are logged verbatim — large payloads (e.g. a full transaction
+// list) produce large log entries; consider truncating if this grows.
 
 use wasm_bindgen::prelude::*;
 
