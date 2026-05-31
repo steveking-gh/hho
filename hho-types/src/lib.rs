@@ -148,4 +148,6 @@ pub struct SaveWindowSizeArgs {
 pub struct AutoAssignRule {
     pub regex: String,
     pub pane: String, // "left" | "right" | "bottom"
+    #[serde(default)]
+    pub category_override: Option<String>,
 }

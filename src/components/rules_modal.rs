@@ -216,6 +216,7 @@ pub fn RulesModal() -> impl IntoView {
                     preview_vendor=preview_vendor
                     initial_regex=rule_to_edit.regex
                     initial_pane=rule_to_edit.pane
+                    initial_category_override=rule_to_edit.category_override.clone().unwrap_or_default()
                     on_save=move |updated_rule: AutoAssignRule| {
                         rules_draft.update(|rules| {
                             if idx < rules.len() {

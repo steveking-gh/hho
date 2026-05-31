@@ -253,7 +253,7 @@ impl AppState {
         filtered.sort_by(|a, b| a.date.cmp(&b.date));
 
         let rules = self.auto_assign_rules.get_untracked();
-        let compiled_rules: Vec<(regex::Regex, ActivePane)> = rules
+        let compiled_rules: Vec<(regex::Regex, ActivePane, Option<String>)> = rules
             .iter()
             .filter_map(|r| {
                 let pane = match r.pane.as_str() {
@@ -263,7 +263,7 @@ impl AppState {
                     _ => return None,
                 };
                 let anchored = format!("^(?:{})$", r.regex);
-                regex::Regex::new(&anchored).ok().map(|re| (re, pane))
+                regex::Regex::new(&anchored).ok().map(|re| (re, pane, r.category_override.clone()))
             })
             .collect();
 
@@ -274,21 +274,31 @@ impl AppState {
 
         for t in filtered {
             let mut matched_pane = None;
-            for (re, pane) in &compiled_rules {
+            let mut overridden_category = None;
+            for (re, pane, cat_override) in &compiled_rules {
                 if re.is_match(&t.vendor) {
                     matched_pane = Some(*pane);
+                    overridden_category = cat_override.clone();
                     break;
                 }
             }
 
+            let category = overridden_category.unwrap_or_else(|| t.category.clone());
+
             let item = Item {
                 id: next_item_id(),
-                label: format_txn(&t),
+                label: format_txn(&Transaction {
+                    date: t.date.clone(),
+                    vendor: t.vendor.clone(),
+                    category: category.clone(),
+                    amount_cents: t.amount_cents,
+                    direction: t.direction,
+                }),
                 amount_cents: t.amount_cents,
                 direction: t.direction,
                 date: t.date.clone(),
                 auto_matched: matched_pane.is_some(),
-                category: t.category.clone(),
+                category,
             };
 
             match matched_pane {
@@ -319,5 +329,97 @@ impl AppState {
             "[Filter] Applied {year}-{month:02} to \"{inst}\" → {count} transactions loaded (Unassigned={middle_len}, auto-assigned={})",
             left_len + right_len + bottom_len
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dto::{Direction, Transaction};
+    use hho_types::AutoAssignRule;
+
+    fn create_test_state() -> AppState {
+        AppState {
+            active_pane:  RwSignal::new(ActivePane::Middle),
+            left_items:   RwSignal::new(vec![]),
+            middle_items: RwSignal::new(vec![]),
+            right_items:  RwSignal::new(vec![]),
+            bottom_items: RwSignal::new(vec![]),
+            left_sel:     RwSignal::new(None),
+            middle_sel:   RwSignal::new(None),
+            right_sel:    RwSignal::new(None),
+            bottom_sel:   RwSignal::new(None),
+            debug_log:    RwSignal::new(vec![]),
+            font_scale:   RwSignal::new(10.0),
+            left_width:   RwSignal::new(200.0),
+            right_width:  RwSignal::new(200.0),
+            bottom_h:     RwSignal::new(200.0),
+            debug_h:      RwSignal::new(150.0),
+            drag:         RwSignal::new(None),
+            pending_mapping: RwSignal::new(None),
+            recent_files: RwSignal::new(vec![]),
+            selected_year: RwSignal::new(2026),
+            selected_month: RwSignal::new(5),
+            raw_transactions: RwSignal::new(vec![]),
+            current_institution: RwSignal::new(None),
+            is_month_modal_open: RwSignal::new(false),
+            is_loading_file: RwSignal::new(false),
+            auto_assign_rules: RwSignal::new(vec![]),
+            assign_modal_item: RwSignal::new(None),
+            is_rules_modal_open: RwSignal::new(false),
+            is_create_transaction_modal_open: RwSignal::new(false),
+        }
+    }
+
+    #[test]
+    fn test_apply_month_filter_with_category_override() {
+        let state = create_test_state();
+        state.selected_year.set(2026);
+        state.selected_month.set(5);
+        state.raw_transactions.set(vec![
+            Transaction {
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS COFFEE".to_string(),
+                category: "Uncategorized".to_string(),
+                amount_cents: 450,
+                direction: Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX".to_string(),
+                category: "Entertainment".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+            },
+        ]);
+        state.auto_assign_rules.set(vec![
+            AutoAssignRule {
+                regex: "STARBUCKS.*".to_string(),
+                pane: "left".to_string(),
+                category_override: Some("Coffee & Tea".to_string()),
+            },
+            AutoAssignRule {
+                regex: "NETFLIX".to_string(),
+                pane: "right".to_string(),
+                category_override: None,
+            },
+        ]);
+
+        state.apply_month_filter();
+
+        // Verify Starbucks matches the rule and applies the category override
+        let left = state.left_items.get();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].category, "Coffee & Tea");
+        assert!(left[0].label.contains("Coffee & Tea"));
+        assert!(!left[0].label.contains("Uncategorized"));
+        assert!(left[0].auto_matched);
+
+        // Verify Netflix matches the rule but retains the original category
+        let right = state.right_items.get();
+        assert_eq!(right.len(), 1);
+        assert_eq!(right[0].category, "Entertainment");
+        assert!(right[0].label.contains("Entertainment"));
+        assert!(right[0].auto_matched);
     }
 }

@@ -13,6 +13,8 @@ pub fn RuleEditorModal<S, C>(
     initial_regex: String,
     /// The pre-populated target pane ("left" | "right" | "bottom").
     initial_pane: String,
+    /// The pre-populated category override value.
+    initial_category_override: String,
     /// Callback executed when the user saves the rule.
     on_save: S,
     /// Callback executed when the user cancels.
@@ -27,6 +29,11 @@ where
 
     let (regex_input, set_regex_input) = signal(initial_regex);
     let (target_pane, set_target_pane) = signal(initial_pane);
+    let (category_override_input, set_category_override_input) = signal(initial_category_override);
+
+    let is_override_active = Memo::new(move |_| {
+        !category_override_input.get().trim().is_empty()
+    });
 
     // Tracks regex match result and compilation errors reactively.
     let match_memo = Memo::new(move |_| {
@@ -68,6 +75,12 @@ where
     let on_save_click = move |_| {
         let regex_val = regex_input.get_untracked();
         let pane_val = target_pane.get_untracked();
+        let cat_override = category_override_input.get_untracked().trim().to_string();
+        let category_override = if cat_override.is_empty() {
+            None
+        } else {
+            Some(cat_override)
+        };
 
         if regex_val.is_empty() || regex::Regex::new(&regex_val).is_err() {
             return;
@@ -76,6 +89,7 @@ where
         on_save(AutoAssignRule {
             regex: regex_val,
             pane: pane_val,
+            category_override,
         });
     };
 
@@ -164,6 +178,28 @@ where
                             "Ignored"
                         </button>
                     </div>
+                </div>
+
+                <div class="modal-field">
+                    <div class="label-row">
+                        <label for="category-override-input">"Category Override (Optional)"</label>
+                        {move || {
+                            if is_override_active.get() {
+                                view! { <span class="override-on-badge">"Override On"</span> }.into_any()
+                            } else {
+                                view! { <span style="display: none;"></span> }.into_any()
+                            }
+                        }}
+                    </div>
+                    <input
+                        id="category-override-input"
+                        type="text"
+                        class="category-override-field"
+                        class:override-active=is_override_active
+                        prop:value=category_override_input
+                        on:input=move |ev| set_category_override_input.set(event_target_value(&ev))
+                        placeholder="Enter category override"
+                    />
                 </div>
 
                 <div class="modal-actions">

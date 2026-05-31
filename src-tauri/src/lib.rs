@@ -643,10 +643,12 @@ mod tests {
                 AutoAssignRule {
                     regex: "STARBUCKS".to_string(),
                     pane: "left".to_string(),
+                    category_override: None,
                 },
                 AutoAssignRule {
                     regex: "NETFLIX".to_string(),
                     pane: "right".to_string(),
+                    category_override: Some("Streaming".to_string()),
                 },
             ],
         };
@@ -662,12 +664,14 @@ mod tests {
             AutoAssignRule {
                 regex: "OLD".to_string(),
                 pane: "left".to_string(),
+                category_override: None,
             }
         ];
         let new_rules = vec![
             AutoAssignRule {
                 regex: "NEW".to_string(),
                 pane: "right".to_string(),
+                category_override: None,
             }
         ];
         cfg.auto_assign_rules = new_rules.clone();

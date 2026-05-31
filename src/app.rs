@@ -434,6 +434,7 @@ pub fn App() -> impl IntoView {
                         preview_vendor=vendor
                         initial_regex=escaped_vendor
                         initial_pane="left".to_string()
+                        initial_category_override="".to_string()
                         on_save=on_save
                         on_cancel=on_cancel
                     />

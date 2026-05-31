@@ -747,6 +747,14 @@ body {
   letter-spacing: 0.05rem;
 }
 
+.override-on-badge {
+  color: #4ec94e;
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+
 .vendor-preview-box.matched {
   border-color: #4ec94e;
   box-shadow: 0 0 0.4rem rgba(78, 201, 78, 0.2);
@@ -755,6 +763,12 @@ body {
 .vendor-preview-box.unmatched {
   border-color: #ff6b6b;
   box-shadow: 0 0 0.4rem rgba(255, 107, 107, 0.2);
+}
+
+.modal-field input.category-override-field.override-active,
+.modal-field input.category-override-field.override-active:focus {
+  border-color: #4ec94e;
+  box-shadow: 0 0 0.4rem rgba(78, 201, 78, 0.2);
 }
 
 /* ── Rules editor modal styling ─────────────────────────────────────────── */
