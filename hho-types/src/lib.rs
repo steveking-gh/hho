@@ -162,6 +162,73 @@ pub fn format_dollars_signed(cents: i64) -> String {
     format!("{}${}.{:02}", sign, abs / 100, abs % 100)
 }
 
+/// Parses a currency string into signed integer cents.
+/// Handles `$`, thousands commas, leading sign, `(1.23)` parentheses-negatives,
+/// and trailing `CR`/`DR` markers. Truncates beyond two decimal places.
+pub fn parse_amount_cents(raw: &str) -> Option<i64> {
+    let mut s = raw.trim().to_string();
+    if s.is_empty() {
+        return None;
+    }
+
+    let mut negative = false;
+
+    // Parentheses denote a negative amount.
+    if s.starts_with('(') && s.ends_with(')') {
+        negative = true;
+        s = s[1..s.len() - 1].to_string();
+    }
+
+    // Trailing CR (credit/positive) or DR (debit/negative) markers.
+    let upper = s.to_uppercase();
+    if upper.ends_with("CR") {
+        s.truncate(s.len() - 2);
+    } else if upper.ends_with("DR") {
+        s.truncate(s.len() - 2);
+        negative = true;
+    }
+
+    // Keep only digits, decimal point, and minus; drop $, commas, spaces.
+    let cleaned: String = s
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+        .collect();
+
+    // A leading minus flips the sign; reject any other stray minus later.
+    let body = match cleaned.strip_prefix('-') {
+        Some(rest) => {
+            negative = !negative;
+            rest.to_string()
+        }
+        None => cleaned,
+    };
+    if body.is_empty() {
+        return None;
+    }
+
+    // Split integer and fractional parts on a single decimal point.
+    let mut parts = body.split('.');
+    let int_part = parts.next().unwrap_or("");
+    let frac_part = parts.next().unwrap_or("");
+    if parts.next().is_some() {
+        return None; // more than one decimal point
+    }
+
+    let int_val: i64 = if int_part.is_empty() {
+        0
+    } else {
+        int_part.parse().ok()?
+    };
+    let frac_cents: i64 = match frac_part.len() {
+        0 => 0,
+        1 => frac_part.parse::<i64>().ok()? * 10,
+        _ => frac_part[..2].parse::<i64>().ok()?, // truncate beyond 2 digits
+    };
+
+    let cents = int_val * 100 + frac_cents;
+    Some(if negative { -cents } else { cents })
+}
+
 /// Net cents per category, sorted by name. Blank/whitespace categories collapse
 /// to "(No Category)". Each entry is `(category, net_cents)`.
 pub fn summarize_by_category<'a, I>(entries: I) -> BTreeMap<String, i64>
@@ -295,5 +362,25 @@ mod tests {
             keys,
             vec!["(No Category)".to_string(), "Travel".to_string()]
         );
+    }
+
+    #[test]
+    fn test_parse_amount_cents() {
+        assert_eq!(parse_amount_cents("286.97"), Some(28697));
+        assert_eq!(parse_amount_cents("-286.97"), Some(-28697));
+        assert_eq!(parse_amount_cents("3367.17"), Some(336717));
+        assert_eq!(parse_amount_cents("$1,234.56"), Some(123456));
+        assert_eq!(parse_amount_cents("-$1,234.56"), Some(-123456));
+        assert_eq!(parse_amount_cents("(5.40)"), Some(-540));
+        assert_eq!(parse_amount_cents("($5.40)"), Some(-540));
+        assert_eq!(parse_amount_cents("5.40 CR"), Some(540));
+        assert_eq!(parse_amount_cents("5.40 DR"), Some(-540));
+        assert_eq!(parse_amount_cents("5"), Some(500));
+        assert_eq!(parse_amount_cents("5.4"), Some(540));
+        assert_eq!(parse_amount_cents("5.409"), Some(540));
+        assert_eq!(parse_amount_cents(""), None);
+        assert_eq!(parse_amount_cents("  "), None);
+        assert_eq!(parse_amount_cents("abc"), None);
+        assert_eq!(parse_amount_cents("1.2.3"), None);
     }
 }

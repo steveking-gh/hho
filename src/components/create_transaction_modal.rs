@@ -1,17 +1,12 @@
 use crate::state::AppState;
-use hho_types::{Direction, Transaction};
+use hho_types::{parse_amount_cents, Direction, Transaction};
 use leptos::prelude::*;
 
 fn parse_cents(s: &str) -> Result<i64, String> {
-    let s = s.trim().strip_prefix('$').unwrap_or(s).trim();
-    if s.is_empty() {
-        return Err("Amount is required".to_string());
-    }
-    let val: f64 = s.parse().map_err(|_| "Invalid number format".to_string())?;
-    if val <= 0.0 {
+    let cents = parse_amount_cents(s).ok_or_else(|| "Invalid number format".to_string())?;
+    if cents <= 0 {
         return Err("Amount must be greater than zero".to_string());
     }
-    let cents = (val * 100.0).round() as i64;
     Ok(cents)
 }
 
