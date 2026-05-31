@@ -1,6 +1,7 @@
 // Custom header component rendering application branding, open actions, recent files dropdown, and quit operations.
 
 use crate::app::handle_open_result;
+use crate::logic::ActivePane;
 use crate::state::AppState;
 use hho_types::Transaction;
 use leptos::prelude::*;
@@ -51,6 +52,30 @@ fn get_month_name(month: i32) -> &'static str {
     }
 }
 
+/// Triggers file export of a pane's transactions to CSV.
+fn save_pane(state: AppState, pane: ActivePane, title: &str) {
+    let items = state.items_for(pane).get_untracked();
+    let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
+    let month = state.selected_month.get_untracked();
+    let year = state.selected_year.get_untracked();
+    let month_name = get_month_name(month).to_string();
+    let title_str = title.to_string();
+
+    spawn_local(async move {
+        state.log(format!(
+            "[Header] Saving {title_str} transactions to CSV (count={})",
+            txns.len()
+        ));
+        if let Err(e) =
+            crate::ipc::save_pane_transactions(title_str.clone(), month_name, year, txns).await
+        {
+            state.log(format!(
+                "[Header] Failed to save {title_str} transactions: {e}"
+            ));
+        }
+    });
+}
+
 #[component]
 pub fn Header() -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
@@ -58,8 +83,7 @@ pub fn Header() -> impl IntoView {
 
     // Handles CSV file pick action.
     let on_open = move |_| {
-        if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some()
-        {
+        if state.is_loading_file.get_untracked() || state.any_modal_open() {
             return;
         }
         state.is_loading_file.set(true);
@@ -83,7 +107,7 @@ pub fn Header() -> impl IntoView {
 
     // Toggles dropdown visibility state.
     let toggle_dropdown = move |e: web_sys::MouseEvent| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
         e.stop_propagation();
@@ -92,7 +116,7 @@ pub fn Header() -> impl IntoView {
 
     // Month / Year button to open period selection modal.
     let on_toggle_month = move |_| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
         state.is_month_modal_open.set(true);
@@ -100,7 +124,7 @@ pub fn Header() -> impl IntoView {
 
     // Opens the rules editor modal.
     let on_edit_rules = move |_| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
         state.is_rules_modal_open.set(true);
@@ -108,7 +132,7 @@ pub fn Header() -> impl IntoView {
 
     // Opens the manual transaction creation modal.
     let on_create_transaction = move |_| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
         state.is_create_transaction_modal_open.set(true);
@@ -116,54 +140,18 @@ pub fn Header() -> impl IntoView {
 
     // Triggers file export of the Joint pane transactions to CSV.
     let on_save_joint = move |_| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
-        let items = state.left_items.get_untracked();
-        let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
-        let month = state.selected_month.get_untracked();
-        let year = state.selected_year.get_untracked();
-        let month_name = get_month_name(month).to_string();
-
-        spawn_local(async move {
-            state.log(format!(
-                "[Header] Saving Joint transactions to CSV (count={})",
-                txns.len()
-            ));
-            if let Err(e) =
-                crate::ipc::save_pane_transactions("Joint".to_string(), month_name, year, txns)
-                    .await
-            {
-                state.log(format!("[Header] Failed to save Joint transactions: {e}"));
-            }
-        });
+        save_pane(state, ActivePane::Left, "Joint");
     };
 
     // Triggers file export of the Personal pane transactions to CSV.
     let on_save_personal = move |_| {
-        if state.pending_mapping.get_untracked().is_some() {
+        if state.any_modal_open() {
             return;
         }
-        let items = state.right_items.get_untracked();
-        let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
-        let month = state.selected_month.get_untracked();
-        let year = state.selected_year.get_untracked();
-        let month_name = get_month_name(month).to_string();
-
-        spawn_local(async move {
-            state.log(format!(
-                "[Header] Saving Personal transactions to CSV (count={})",
-                txns.len()
-            ));
-            if let Err(e) =
-                crate::ipc::save_pane_transactions("Personal".to_string(), month_name, year, txns)
-                    .await
-            {
-                state.log(format!(
-                    "[Header] Failed to save Personal transactions: {e}"
-                ));
-            }
-        });
+        save_pane(state, ActivePane::Right, "Personal");
     };
 
     // Register window click listener to auto-close dropdown when clicking outside.
@@ -200,7 +188,7 @@ pub fn Header() -> impl IntoView {
                                     recents.into_iter().map(|path| {
                                         let path_clone = path.clone();
                                         let on_recent_click = move |_| {
-                                            if state.is_loading_file.get_untracked() || state.pending_mapping.get_untracked().is_some() {
+                                            if state.is_loading_file.get_untracked() || state.any_modal_open() {
                                                 return;
                                             }
                                             state.is_loading_file.set(true);

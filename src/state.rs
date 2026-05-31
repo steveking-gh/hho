@@ -122,6 +122,11 @@ impl AppState {
         }
     }
 
+    /// Checks if any modal is currently open to block header and main actions.
+    pub fn any_modal_open(self) -> bool {
+        self.pending_mapping.get_untracked().is_some()
+    }
+
     /// Replace the Unassigned pane with parsed transactions, select the
     /// first row, and activate the pane.
     pub fn populate_transactions(self, institution: &str, txns: Vec<Transaction>) {
