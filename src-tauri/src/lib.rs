@@ -397,12 +397,16 @@ async fn save_pane_transactions(
         save_config(&cfg);
     }
 
-    let mut wtr = csv::Writer::from_path(&path).map_err(|e| format!("failed to create file: {e}"))?;
+    write_pane_csv(&path, &transactions)
+}
+
+fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), String> {
+    let mut wtr = csv::Writer::from_path(path).map_err(|e| format!("failed to create file: {e}"))?;
 
     wtr.write_record(&["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
 
     let mut total_cents = 0i64;
-    for t in &transactions {
+    for t in transactions {
         let amount_cents = t.amount_cents;
         let dollars = amount_cents / 100;
         let cents_rem = (amount_cents % 100).abs();
@@ -424,7 +428,7 @@ async fn save_pane_transactions(
 
     let mut file = std::fs::OpenOptions::new()
         .append(true)
-        .open(&path)
+        .open(path)
         .map_err(|e| format!("failed to open file for appending: {e}"))?;
 
     use std::io::Write;
@@ -435,7 +439,35 @@ async fn save_pane_transactions(
     let total_str = format!("{}{}.{:02}", total_sign, total_dollars, total_cents_rem);
 
     writeln!(file).map_err(|e| format!("failed to write blank line: {e}"))?;
-    writeln!(file, "TOTAL,,{},", total_str).map_err(|e| format!("failed to write total: {e}"))?;
+    writeln!(file, "TOTAL,{}", total_str).map_err(|e| format!("failed to write total: {e}"))?;
+
+    let mut categories = std::collections::BTreeMap::new();
+    for t in transactions {
+        let cat_name = if t.category.trim().is_empty() {
+            "(No Category)".to_string()
+        } else {
+            t.category.trim().to_string()
+        };
+        *categories.entry(cat_name).or_insert(0i64) += match t.direction {
+            hho_types::Direction::Credit => t.amount_cents,
+            hho_types::Direction::Debit => -t.amount_cents,
+        };
+    }
+
+    for (name, cat_total) in categories {
+        let cat_dollars = cat_total.abs() / 100;
+        let cat_cents = (cat_total % 100).abs();
+        let cat_sign = if cat_total < 0 { "-" } else { "" };
+        let cat_amount_str = format!("{}{}.{:02}", cat_sign, cat_dollars, cat_cents);
+
+        let escaped_name = if name.contains(',') || name.contains('"') {
+            format!("\"{}\"", name.replace('"', "\"\""))
+        } else {
+            name
+        };
+
+        writeln!(file, "{},{}", escaped_name, cat_amount_str).map_err(|e| format!("failed to write category total: {e}"))?;
+    }
 
     Ok(())
 }
@@ -722,6 +754,55 @@ mod tests {
             "Found frontend IPC commands with no matching registered backend handler in generate_handler!: {:?}",
             missing
         );
+    }
+
+    #[test]
+    fn test_write_pane_csv_outputs_correct_format() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_write_pane_csv.csv");
+        let transactions = vec![
+            Transaction {
+                date: "2026-05-18".to_string(),
+                vendor: "BUDGET RENT A CAR".to_string(),
+                category: "Travel".to_string(),
+                amount_cents: 28697,
+                direction: hho_types::Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-19".to_string(),
+                vendor: "STARBUCKS".to_string(),
+                category: "".to_string(),
+                amount_cents: 540,
+                direction: hho_types::Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-20".to_string(),
+                vendor: "CREDIT REFUND".to_string(),
+                category: "Refund, Special".to_string(),
+                amount_cents: 1000,
+                direction: hho_types::Direction::Credit,
+            },
+        ];
+
+        let res = write_pane_csv(&path, &transactions);
+        assert!(res.is_ok());
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let contents_lf = contents.replace("\r\n", "\n");
+        let expected = "\
+Date,Vendor,Amount,Category
+2026-05-18,BUDGET RENT A CAR,-286.97,Travel
+2026-05-19,STARBUCKS,-5.40,
+2026-05-20,CREDIT REFUND,10.00,\"Refund, Special\"
+
+TOTAL,-282.37
+(No Category),-5.40
+\"Refund, Special\",10.00
+Travel,-286.97
+";
+        assert_eq!(contents_lf, expected);
+
+        let _ = std::fs::remove_file(&path);
     }
 }
 
