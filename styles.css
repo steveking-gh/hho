@@ -1048,3 +1048,83 @@ body {
     padding-bottom: 8px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Footer Status Bar and Toggle
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.footer-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 2.6rem;
+  padding: 0 1.2rem;
+  background-color: #141414;
+  border-top: 0.1rem solid rgba(245, 166, 35, 0.2);
+  font-family: inherit;
+  font-size: 1.1rem;
+  user-select: none;
+}
+
+.footer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #888888;
+  cursor: pointer;
+  transition: color 0.15s ease-in-out;
+}
+
+.footer-toggle:hover {
+  color: rgb(245, 165, 35);
+}
+
+/* Custom checkbox button using orange outline and default window pane background. */
+.footer-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0.1rem solid rgba(245, 166, 35, 0.4);
+  background-color: #1e1e1e;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+}
+
+.footer-toggle input[type="checkbox"]:hover {
+  border-color: rgb(245, 166, 35);
+  box-shadow: 0 0 0.4rem rgba(245, 166, 35, 0.2);
+}
+
+.footer-toggle input[type="checkbox"]:checked {
+  border-color: rgb(245, 166, 35);
+  background-color: #1e1e1e;
+}
+
+.footer-toggle input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  width: 0.4rem;
+  height: 0.8rem;
+  border: solid rgb(245, 166, 35);
+  border-width: 0 0.2rem 0.2rem 0;
+  transform: rotate(45deg);
+  position: absolute;
+  top: 0.1rem;
+  left: 0.4rem;
+}
+
+
+/* Hide footer bar under media print rules. */
+@media print {
+  .footer-bar {
+    display: none !important;
+  }
+}
+

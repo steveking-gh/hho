@@ -504,8 +504,10 @@ pub fn App() -> impl IntoView {
                 </div>
                 <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::TopHandle />
                 <Pane title="Ignored" pane_id=ActivePane::Bottom is_bottom=true />
-                <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::BottomHandle />
-                <DebugLog />
+                {move || state.show_debug_log.get().then(|| view! {
+                    <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::BottomHandle />
+                    <DebugLog />
+                })}
             </div>
 
             // Mapping modal: rendered only while a pending mapping exists.
@@ -547,6 +549,18 @@ pub fn App() -> impl IntoView {
 
             // Print view component for physical printing or PDF export.
             <PrintView />
+
+            // Footer status bar containing the show debug log toggle.
+            <div class="footer-bar">
+                <label class="footer-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || state.show_debug_log.get()
+                        on:change=move |e| state.show_debug_log.set(event_target_checked(&e))
+                    />
+                    <span>"Show Debug Log"</span>
+                </label>
+            </div>
         </div>
     }
 }

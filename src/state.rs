@@ -59,7 +59,8 @@ pub struct AppState {
     pub bottom_sel: RwSignal<Option<usize>>,
 
     // ── Debug log ─────────────────────────────────────────────────────────────
-    pub debug_log: RwSignal<Vec<String>>,
+    pub debug_log: RwSignal<Vec<(usize, String)>>,
+    pub debug_log_counter: RwSignal<usize>,
 
     // ── Accessibility zoom ────────────────────────────────────────────────────
     pub font_scale: RwSignal<f32>,
@@ -97,6 +98,8 @@ pub struct AppState {
     pub is_create_transaction_modal_open: RwSignal<bool>,
     // State signal representing the active print target pane.
     pub print_target: RwSignal<Option<ActivePane>>,
+    // State signal representing the visibility of the debug log panel.
+    pub show_debug_log: RwSignal<bool>,
 }
 
 impl AppState {
@@ -112,6 +115,7 @@ impl AppState {
             right_sel: RwSignal::new(None),
             bottom_sel: RwSignal::new(None),
             debug_log: RwSignal::new(vec![]),
+            debug_log_counter: RwSignal::new(0),
             font_scale: RwSignal::new(10.0),
             // Defaults match the Tauri-side DEFAULT_* constants; overridden
             // on startup by the get_layout invoke in app.rs.
@@ -133,6 +137,7 @@ impl AppState {
             is_rules_modal_open: RwSignal::new(false),
             is_create_transaction_modal_open: RwSignal::new(false),
             print_target: RwSignal::new(None),
+            show_debug_log: RwSignal::new(false),
         };
 
         // Save the state globally for IPC/async logging access.
@@ -180,12 +185,14 @@ impl AppState {
         }
     }
 
-    /// Append `msg` to the debug log (newest first, capped at 500) and echo
+    /// Append a numbered log message to the debug log (newest first, capped at 500) and echo
     /// to the browser console.
     pub fn log(self, msg: String) {
         leptos::logging::log!("{}", msg);
+        let counter = self.debug_log_counter.get_untracked();
+        self.debug_log_counter.set(counter + 1);
         self.debug_log.update(|log| {
-            log.insert(0, msg);
+            log.insert(0, (counter, msg));
             if log.len() > 500 {
                 log.truncate(500);
             }

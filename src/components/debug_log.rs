@@ -19,7 +19,7 @@ pub fn DebugLog() -> impl IntoView {
                 {move || {
                     log.get()
                         .into_iter()
-                        .map(|entry| view! { <div class="debug-entry">{entry}</div> })
+                        .map(|(idx, entry)| view! { <div class="debug-entry">{format!("[{}] {}", idx, entry)}</div> })
                         .collect_view()
                 }}
             </div>
