@@ -435,25 +435,40 @@ body {
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 1.2rem;
-  background-color: #262626;
-  border: 0.1rem solid #3a3a3a;
+  background: rgba(245, 166, 35, 0.08);
+  border: 0.1rem solid rgba(245, 166, 35, 0.35);
   border-radius: 0.4rem;
-  color: #d8d8d8;
+  color: rgb(245, 165, 35);
   font-family: inherit;
   font-size: 1.2rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 80ms ease, border-color 80ms ease;
+  transition: all 0.15s ease-in-out;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
 }
 
 .header-btn:hover {
-  background-color: #363636;
-  border-color: #555;
+  background: rgba(245, 166, 35, 0.22);
+  border-color: rgb(245, 165, 35);
+  box-shadow: 0 0 0.8rem rgba(245, 166, 35, 0.15);
   color: #ffffff;
 }
 
+.header-btn:active {
+  transform: scale(0.97);
+}
+
+.header-btn-danger {
+  background: rgba(235, 87, 87, 0.08);
+  border-color: rgba(235, 87, 87, 0.35);
+  color: rgb(235, 87, 87);
+}
+
 .header-btn-danger:hover {
-  background-color: #8b2525;
-  border-color: #a83232;
+  background: rgba(235, 87, 87, 0.22);
+  border-color: rgb(235, 87, 87);
+  box-shadow: 0 0 0.8rem rgba(235, 87, 87, 0.15);
   color: #ffffff;
 }
 
