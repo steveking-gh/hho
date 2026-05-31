@@ -142,6 +142,16 @@ where
     }
 }
 
+/// Invoke a command with arguments and discard the result.
+async fn call_discard<A: serde::Serialize>(state: AppState, cmd: &str, args: &A) {
+    let _ = call::<A, ()>(state, cmd, args).await;
+}
+
+/// Invoke a command with no arguments and discard the result.
+async fn call_unit_discard(state: AppState, cmd: &str) {
+    let _ = call_unit::<()>(state, cmd).await;
+}
+
 // ── Command wrappers ──────────────────────────────────────────────────────────
 
 /// Open a native file picker and read the chosen CSV.
@@ -178,45 +188,22 @@ pub async fn get_layout(state: AppState) -> Result<LayoutConfig, String> {
 
 /// Persist pane dimensions (best-effort; ignores failures).
 pub async fn save_layout(state: AppState, left_width: f32, right_width: f32, bottom_h: f32, debug_h: f32) {
-    let args = SaveLayoutArgs {
-        left_width,
-        right_width,
-        bottom_h,
-        debug_h,
-    };
-    let args_val = to_args(&args);
-    let args_str = summarize_js(&args_val);
-    state.log(format!("[IPC Request] save_layout with args: {args_str}"));
-    let res = invoke_raw("save_layout", args_val).await;
-    match res {
-        Ok(v) => {
-            let res_str = summarize_js(&v);
-            state.log(format!("[IPC Response] save_layout success: {res_str}"));
-        }
-        Err(e) => {
-            let err_str = stringify_js(&e);
-            state.log(format!("[IPC Error] save_layout backend error: {err_str}"));
-        }
-    }
+    call_discard(
+        state,
+        "save_layout",
+        &SaveLayoutArgs {
+            left_width,
+            right_width,
+            bottom_h,
+            debug_h,
+        },
+    )
+    .await;
 }
 
 /// Persist window dimensions (best-effort; ignores failures).
 pub async fn save_window_size(state: AppState, width: f64, height: f64) {
-    let args = SaveWindowSizeArgs { width, height };
-    let args_val = to_args(&args);
-    let args_str = summarize_js(&args_val);
-    state.log(format!("[IPC Request] save_window_size with args: {args_str}"));
-    let res = invoke_raw("save_window_size", args_val).await;
-    match res {
-        Ok(v) => {
-            let res_str = summarize_js(&v);
-            state.log(format!("[IPC Response] save_window_size success: {res_str}"));
-        }
-        Err(e) => {
-            let err_str = stringify_js(&e);
-            state.log(format!("[IPC Error] save_window_size backend error: {err_str}"));
-        }
-    }
+    call_discard(state, "save_window_size", &SaveWindowSizeArgs { width, height }).await;
 }
 
 /// Fetches the recent CSV file paths.
@@ -253,16 +240,5 @@ pub async fn save_pane_transactions(
 
 /// Closes the application cleanly.
 pub async fn exit_app(state: AppState) {
-    state.log("[IPC Request] exit_app with no args".to_string());
-    let res = invoke_raw("exit_app", JsValue::NULL).await;
-    match res {
-        Ok(v) => {
-            let res_str = summarize_js(&v);
-            state.log(format!("[IPC Response] exit_app success: {res_str}"));
-        }
-        Err(e) => {
-            let err_str = stringify_js(&e);
-            state.log(format!("[IPC Error] exit_app backend error: {err_str}"));
-        }
-    }
+    call_unit_discard(state, "exit_app").await;
 }
