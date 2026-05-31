@@ -305,9 +305,7 @@ pub fn App() -> impl IntoView {
         if ctrl && (key.eq_ignore_ascii_case("o") || key.eq_ignore_ascii_case("q")) {
             ev.prevent_default();
             if key.eq_ignore_ascii_case("o") {
-                if state.is_loading_file.get_untracked()
-                    || state.pending_mapping.get_untracked().is_some()
-                {
+                if state.is_loading_file.get_untracked() || state.any_modal_open() {
                     return;
                 }
                 state.is_loading_file.set(true);
@@ -329,12 +327,7 @@ pub fn App() -> impl IntoView {
         }
 
         // Suppress navigation while any modal is open.
-        if state.pending_mapping.get_untracked().is_some()
-            || state.assign_modal_item.get_untracked().is_some()
-            || state.is_month_modal_open.get_untracked()
-            || state.is_rules_modal_open.get_untracked()
-            || state.is_create_transaction_modal_open.get_untracked()
-        {
+        if state.any_modal_open() {
             return;
         }
 

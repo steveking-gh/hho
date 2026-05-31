@@ -156,15 +156,13 @@ impl AppState {
         state
     }
 
-    /// True while a modal/overlay is open; used to gate header and main actions.
-    ///
-    /// NOTE: despite the name, this currently checks ONLY `pending_mapping`. The
-    /// assign / month / rules / create-transaction modals are not covered, so
-    /// header buttons and Ctrl+O are *not* blocked while those are open. The
-    /// keydown handler in app.rs checks all of them separately — the two lists
-    /// should be unified here so the gating is consistent.
+    /// Returns true if any modal or overlay is currently open to gate header and main actions.
     pub fn any_modal_open(self) -> bool {
         self.pending_mapping.get_untracked().is_some()
+            || self.assign_modal_item.get_untracked().is_some()
+            || self.is_month_modal_open.get_untracked()
+            || self.is_rules_modal_open.get_untracked()
+            || self.is_create_transaction_modal_open.get_untracked()
     }
 
     /// Replace the Unassigned pane with parsed transactions, select the
