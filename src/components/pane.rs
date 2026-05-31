@@ -59,13 +59,49 @@ pub fn Pane(
             <div class="pane-header">
                 {move || {
                     let items = items_sig.get();
-                    // Sums all transaction amounts, treating debits as negative and credits as positive.
                     let total_cents = crate::logic::calculate_total_cents(&items);
                     let abs_cents = total_cents.abs();
                     let dollars = abs_cents / 100;
                     let cents = abs_cents % 100;
                     let sign = if total_cents < 0 { "-" } else { "" };
-                    format!("{}:  {}${}.{:02}", title, sign, dollars, cents)
+                    let main_header = format!("{}:  {}${}.{:02}", title, sign, dollars, cents);
+
+                    if pane_id == ActivePane::Bottom {
+                        view! {
+                            <div class="pane-header-title">{main_header}</div>
+                        }.into_any()
+                    } else {
+                        let mut categories = std::collections::BTreeMap::new();
+                        for item in &items {
+                            let cat_name = if item.category.trim().is_empty() {
+                                "(No Category)".to_string()
+                            } else {
+                                item.category.trim().to_string()
+                            };
+                            *categories.entry(cat_name).or_insert(0i64) += match item.direction {
+                                hho_types::Direction::Credit => item.amount_cents,
+                                hho_types::Direction::Debit => -item.amount_cents,
+                            };
+                        }
+
+                        let cat_rows = categories
+                            .into_iter()
+                            .map(|(name, cat_total)| {
+                                let cat_abs = cat_total.abs();
+                                let cat_dollars = cat_abs / 100;
+                                let cat_cents = cat_abs % 100;
+                                let cat_sign = if cat_total < 0 { "-" } else { "" };
+                                view! {
+                                    <div>{format!("{}:  {}${}.{:02}", name, cat_sign, cat_dollars, cat_cents)}</div>
+                                }
+                            })
+                            .collect_view();
+
+                        view! {
+                            <div class="pane-header-title">{main_header}</div>
+                            {cat_rows}
+                        }.into_any()
+                    }
                 }}
             </div>
             <div class="pane-rows">
