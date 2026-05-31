@@ -2,7 +2,7 @@
 // Renders match highlighting preview, validation state, and destination buttons.
 // Invokes callbacks on save and cancel actions.
 
-use hho_types::AutoAssignRule;
+use hho_types::{AutoAssignRule, RulePane};
 use leptos::prelude::*;
 
 #[component]
@@ -11,8 +11,8 @@ pub fn RuleEditorModal<S, C>(
     preview_vendor: String,
     /// The pre-populated match regex pattern.
     initial_regex: String,
-    /// The pre-populated target pane ("left" | "right" | "bottom").
-    initial_pane: String,
+    /// The pre-populated target pane.
+    initial_pane: RulePane,
     /// The pre-populated category override value.
     initial_category_override: String,
     /// Callback executed when the user saves the rule.
@@ -147,22 +147,22 @@ where
                     <div class="pane-selector-row">
                         <button
                             type="button"
-                            class=move || if target_pane.get() == "left" { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set("left".to_string())
+                            class=move || if target_pane.get() == RulePane::Joint { "pane-select-btn active" } else { "pane-select-btn" }
+                            on:click=move |_| set_target_pane.set(RulePane::Joint)
                         >
                             "Joint"
                         </button>
                         <button
                             type="button"
-                            class=move || if target_pane.get() == "right" { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set("right".to_string())
+                            class=move || if target_pane.get() == RulePane::Personal { "pane-select-btn active" } else { "pane-select-btn" }
+                            on:click=move |_| set_target_pane.set(RulePane::Personal)
                         >
                             "Personal"
                         </button>
                         <button
                             type="button"
-                            class=move || if target_pane.get() == "bottom" { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set("bottom".to_string())
+                            class=move || if target_pane.get() == RulePane::Ignored { "pane-select-btn active" } else { "pane-select-btn" }
+                            on:click=move |_| set_target_pane.set(RulePane::Ignored)
                         >
                             "Ignored"
                         </button>

@@ -233,7 +233,7 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
         amount_col,
         type_col,
         category_col,
-        scheme: "single_signed".to_string(),
+        scheme: hho_types::AmountSchemeTag::SingleSigned,
         debit_is_negative: true,
         ignore_cols,
     }

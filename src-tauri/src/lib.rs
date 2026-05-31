@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-// IPC payload types are shared with the frontend via the hho-types crate.
 use hho_types::{AutoAssignRule, Institution, LayoutConfig, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -500,6 +499,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hho_types::RulePane;
 
     #[test]
     fn push_recent_prepends_new_entry() {
@@ -625,12 +625,12 @@ mod tests {
             auto_assign_rules: vec![
                 AutoAssignRule {
                     regex: "STARBUCKS".to_string(),
-                    pane: "left".to_string(),
+                    pane: RulePane::Joint,
                     category_override: None,
                 },
                 AutoAssignRule {
                     regex: "NETFLIX".to_string(),
-                    pane: "right".to_string(),
+                    pane: RulePane::Personal,
                     category_override: Some("Streaming".to_string()),
                 },
             ],
@@ -645,14 +645,14 @@ mod tests {
         let mut cfg = UserConfig {
             auto_assign_rules: vec![AutoAssignRule {
                 regex: "OLD".to_string(),
-                pane: "left".to_string(),
+                pane: RulePane::Joint,
                 category_override: None,
             }],
             ..Default::default()
         };
         let new_rules = vec![AutoAssignRule {
             regex: "NEW".to_string(),
-            pane: "right".to_string(),
+            pane: RulePane::Personal,
             category_override: None,
         }];
         cfg.auto_assign_rules = new_rules.clone();

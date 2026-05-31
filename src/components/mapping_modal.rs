@@ -5,7 +5,7 @@
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::dto::{AmountScheme, Institution, PendingMapping};
+use crate::dto::{AmountScheme, AmountSchemeTag, Institution, PendingMapping};
 use crate::state::AppState;
 
 /// Split a comma-separated label string into trimmed, non-empty entries.
@@ -52,7 +52,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let vendor_col = RwSignal::new(s.vendor_col);
     let category_col = RwSignal::new(s.category_col);
     let amount_col = RwSignal::new(s.amount_col);
-    let scheme = RwSignal::new(s.scheme.clone());
+    let scheme = RwSignal::new(s.scheme);
     let debit_is_negative = RwSignal::new(s.debit_is_negative);
     let type_col = RwSignal::new(s.type_col.unwrap_or(0));
     let debit_labels = RwSignal::new("Sale,DEBIT,DR".to_string());
@@ -92,7 +92,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
 
         // Build the scheme as a typed enum — invalid field combinations are
         // unrepresentable, and serde produces exactly what the backend expects.
-        let amount = if scheme.get_untracked() == "type_column" {
+        let amount = if scheme.get_untracked() == AmountSchemeTag::TypeColumn {
             AmountScheme::TypeColumn {
                 amount_col: amount_col.get_untracked(),
                 type_col: type_col.get_untracked(),
@@ -223,16 +223,16 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                     <label>
                         <input
                             type="radio" name="scheme"
-                            prop:checked=move || scheme.get() == "single_signed"
-                            on:change=move |_| scheme.set("single_signed".to_string())
+                            prop:checked=move || scheme.get() == AmountSchemeTag::SingleSigned
+                            on:change=move |_| scheme.set(AmountSchemeTag::SingleSigned)
                         />
                         " Single signed column"
                     </label>
                     <label>
                         <input
                             type="radio" name="scheme"
-                            prop:checked=move || scheme.get() == "type_column"
-                            on:change=move |_| scheme.set("type_column".to_string())
+                            prop:checked=move || scheme.get() == AmountSchemeTag::TypeColumn
+                            on:change=move |_| scheme.set(AmountSchemeTag::TypeColumn)
                         />
                         " Type column"
                     </label>
@@ -249,7 +249,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                 </label>
 
                 // Single-signed extra: debit sign convention.
-                {move || (scheme.get() == "single_signed").then(|| view! {
+                {move || (scheme.get() == AmountSchemeTag::SingleSigned).then(|| view! {
                     <div class="modal-radios">
                         <span>"Debit is:"</span>
                         <label>
@@ -272,7 +272,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                 })}
 
                 // Type-column extra: type column + label lists.
-                {move || (scheme.get() == "type_column").then({
+                {move || (scheme.get() == AmountSchemeTag::TypeColumn).then({
                     let h_type = h_type.clone();
                     move || view! {
                         <label class="modal-field">

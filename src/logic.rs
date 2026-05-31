@@ -175,6 +175,73 @@ pub fn escape_regex(input: &str) -> String {
     regex::escape(input)
 }
 
+/// Formats a transaction as a single-line pane label.
+/// Indicates debit flow with a leading negative sign and credit flow with a leading positive sign.
+pub fn format_txn(t: &hho_types::Transaction) -> String {
+    let amount =
+        hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
+    format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
+}
+
+/// Routes transactions into destination panes based on auto-assign rules.
+/// Returns a tuple of item lists corresponding to the Left (Joint), Middle (Unassigned),
+/// Right (Personal), and Bottom (Ignored) panes respectively.
+pub fn classify_transactions(
+    txns: Vec<hho_types::Transaction>,
+    rules: &[hho_types::AutoAssignRule],
+) -> (Vec<Item>, Vec<Item>, Vec<Item>, Vec<Item>) {
+    let compiled_rules: Vec<(regex::Regex, hho_types::RulePane, Option<String>)> = rules
+        .iter()
+        .filter_map(|r| {
+            compile_rule(&r.regex)
+                .ok()
+                .map(|re| (re, r.pane, r.category_override.clone()))
+        })
+        .collect();
+
+    let mut left = vec![];
+    let mut middle = vec![];
+    let mut right = vec![];
+    let mut bottom = vec![];
+
+    for t in txns {
+        let mut matched_pane = None;
+        let mut overridden_category = None;
+        for (re, pane, cat_override) in &compiled_rules {
+            if re.is_match(&t.vendor) {
+                matched_pane = Some(*pane);
+                overridden_category = cat_override.clone();
+                break;
+            }
+        }
+
+        let category = overridden_category.unwrap_or_else(|| t.category.clone());
+
+        let txn = hho_types::Transaction {
+            date: t.date.clone(),
+            vendor: t.vendor.clone(),
+            category,
+            amount_cents: t.amount_cents,
+            direction: t.direction,
+        };
+        let item = Item {
+            id: next_item_id(),
+            label: format_txn(&txn),
+            auto_matched: matched_pane.is_some(),
+            txn,
+        };
+
+        match matched_pane {
+            Some(hho_types::RulePane::Joint) => left.push(item),
+            Some(hho_types::RulePane::Personal) => right.push(item),
+            Some(hho_types::RulePane::Ignored) => bottom.push(item),
+            None => middle.push(item),
+        }
+    }
+
+    (left, middle, right, bottom)
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -443,5 +510,85 @@ mod tests {
         assert_eq!(escape_regex("Google.com"), "Google\\.com");
         assert_eq!(escape_regex("Shop*"), "Shop\\*");
         assert_eq!(escape_regex("Vendor (US)"), "Vendor \\(US\\)");
+    }
+
+    #[test]
+    fn test_classify_transactions_routes_correctly() {
+        use hho_types::{AutoAssignRule, Direction, RulePane, Transaction};
+
+        let txns = vec![
+            Transaction {
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS COFFEE".to_string(),
+                category: "Uncategorized".to_string(),
+                amount_cents: 450,
+                direction: Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX".to_string(),
+                category: "Entertainment".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-17".to_string(),
+                vendor: "SAFEWAY".to_string(),
+                category: "Groceries".to_string(),
+                amount_cents: 5000,
+                direction: Direction::Debit,
+            },
+            Transaction {
+                date: "2026-05-18".to_string(),
+                vendor: "SPAMMY_EMAIL".to_string(),
+                category: "Misc".to_string(),
+                amount_cents: 100,
+                direction: Direction::Debit,
+            },
+        ];
+
+        let rules = vec![
+            AutoAssignRule {
+                regex: "STARBUCKS.*".to_string(),
+                pane: RulePane::Joint,
+                category_override: Some("Coffee & Tea".to_string()),
+            },
+            AutoAssignRule {
+                regex: "NETFLIX".to_string(),
+                pane: RulePane::Personal,
+                category_override: None,
+            },
+            AutoAssignRule {
+                regex: "SPAMMY_EMAIL".to_string(),
+                pane: RulePane::Ignored,
+                category_override: Some("Junk".to_string()),
+            },
+        ];
+
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+
+        // Verify Starbucks matches the rule and goes to Joint (left) with overridden category
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].txn.vendor, "STARBUCKS COFFEE");
+        assert_eq!(left[0].txn.category, "Coffee & Tea");
+        assert!(left[0].auto_matched);
+
+        // Verify Netflix matches the rule and goes to Personal (right) with original category
+        assert_eq!(right.len(), 1);
+        assert_eq!(right[0].txn.vendor, "NETFLIX");
+        assert_eq!(right[0].txn.category, "Entertainment");
+        assert!(right[0].auto_matched);
+
+        // Verify Spammy email matches the rule and goes to Ignored (bottom) with overridden category
+        assert_eq!(bottom.len(), 1);
+        assert_eq!(bottom[0].txn.vendor, "SPAMMY_EMAIL");
+        assert_eq!(bottom[0].txn.category, "Junk");
+        assert!(bottom[0].auto_matched);
+
+        // Verify Safeway does not match rules and goes to Unassigned (middle)
+        assert_eq!(middle.len(), 1);
+        assert_eq!(middle[0].txn.vendor, "SAFEWAY");
+        assert_eq!(middle[0].txn.category, "Groceries");
+        assert!(!middle[0].auto_matched);
     }
 }

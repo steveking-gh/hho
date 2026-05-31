@@ -66,6 +66,23 @@ pub struct Transaction {
     pub direction: Direction,
 }
 
+/// Identifies which amount scheme parsing strategy applies.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AmountSchemeTag {
+    SingleSigned,
+    TypeColumn,
+}
+
+impl std::fmt::Display for AmountSchemeTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SingleSigned => write!(f, "single_signed"),
+            Self::TypeColumn => write!(f, "type_column"),
+        }
+    }
+}
+
 /// Heuristic mapping suggestion shown as the modal's initial state.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SuggestedMapping {
@@ -74,7 +91,7 @@ pub struct SuggestedMapping {
     pub amount_col: usize,
     pub type_col: Option<usize>,
     pub category_col: Option<usize>,
-    pub scheme: String, // "single_signed" | "type_column"
+    pub scheme: AmountSchemeTag,
     pub debit_is_negative: bool,
     pub ignore_cols: Vec<usize>,
 }
@@ -200,11 +217,30 @@ pub struct SaveWindowSizeArgs {
     pub height: f64,
 }
 
+/// Target pane destination for automatic transaction assignment.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RulePane {
+    Joint,
+    Personal,
+    Ignored,
+}
+
+impl std::fmt::Display for RulePane {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Joint => write!(f, "joint"),
+            Self::Personal => write!(f, "personal"),
+            Self::Ignored => write!(f, "ignored"),
+        }
+    }
+}
+
 /// A regex rule mapping a vendor name to a destination pane.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AutoAssignRule {
     pub regex: String,
-    pub pane: String, // "left" | "right" | "bottom"
+    pub pane: RulePane,
     #[serde(default)]
     pub category_override: Option<String>,
 }

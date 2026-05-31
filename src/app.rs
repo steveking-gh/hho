@@ -122,7 +122,7 @@ fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types
 pub struct AssignModalProps {
     pub preview_vendor: String,
     pub initial_regex: String,
-    pub initial_pane: String,
+    pub initial_pane: hho_types::RulePane,
     pub initial_category_override: String,
 }
 
@@ -137,8 +137,8 @@ pub fn build_assign_modal_props(state: AppState, item: &Item) -> AssignModalProp
         .unwrap_or_else(|| escaped_vendor.clone());
     let initial_pane = matched_info
         .as_ref()
-        .map(|(_, r)| r.pane.clone())
-        .unwrap_or_else(|| "left".to_string());
+        .map(|(_, r)| r.pane)
+        .unwrap_or(hho_types::RulePane::Joint);
     let initial_category_override = matched_info
         .as_ref()
         .map(|(_, r)| r.category_override.clone().unwrap_or_default())
@@ -557,12 +557,12 @@ mod tests {
         state.auto_assign_rules.set(vec![
             hho_types::AutoAssignRule {
                 regex: "STARBUCKS.*".to_string(),
-                pane: "left".to_string(),
+                pane: hho_types::RulePane::Joint,
                 category_override: Some("Coffee".to_string()),
             },
             hho_types::AutoAssignRule {
                 regex: "NETFLIX".to_string(),
-                pane: "right".to_string(),
+                pane: hho_types::RulePane::Personal,
                 category_override: None,
             },
         ]);
@@ -572,13 +572,13 @@ mod tests {
         assert!(match1.is_some());
         let (idx1, rule1) = match1.unwrap();
         assert_eq!(idx1, 0);
-        assert_eq!(rule1.pane, "left");
+        assert_eq!(rule1.pane, hho_types::RulePane::Joint);
 
         let match2 = find_matching_rule(state, "NETFLIX");
         assert!(match2.is_some());
         let (idx2, rule2) = match2.unwrap();
         assert_eq!(idx2, 1);
-        assert_eq!(rule2.pane, "right");
+        assert_eq!(rule2.pane, hho_types::RulePane::Personal);
 
         let match3 = find_matching_rule(state, "GOOGLE");
         assert!(match3.is_none());
@@ -589,7 +589,7 @@ mod tests {
         let state = AppState::new();
         state.auto_assign_rules.set(vec![hho_types::AutoAssignRule {
             regex: "STARBUCKS.*".to_string(),
-            pane: "left".to_string(),
+            pane: hho_types::RulePane::Joint,
             category_override: Some("Coffee".to_string()),
         }]);
 
@@ -610,7 +610,7 @@ mod tests {
         let props = build_assign_modal_props(state, &item);
         assert_eq!(props.preview_vendor, "STARBUCKS COFFEE");
         assert_eq!(props.initial_regex, "STARBUCKS.*");
-        assert_eq!(props.initial_pane, "left");
+        assert_eq!(props.initial_pane, hho_types::RulePane::Joint);
         assert_eq!(props.initial_category_override, "Coffee");
     }
 }

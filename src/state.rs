@@ -2,16 +2,8 @@
 // AppState is Copy (all fields are RwSignal, which is Copy + 'static).
 
 use crate::dto::{PendingMapping, Transaction};
-use crate::logic::{next_item_id, transfer_item, ActivePane, Item};
+use crate::logic::{classify_transactions, transfer_item, ActivePane, Item};
 use leptos::prelude::*;
-
-/// Render a transaction as a single-line pane label.
-/// Debit shows a leading "-", credit a leading "+".
-fn format_txn(t: &Transaction) -> String {
-    let amount =
-        hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
-    format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
-}
 
 // ── Drag types ────────────────────────────────────────────────────────────────
 
@@ -247,61 +239,7 @@ impl AppState {
         filtered.sort_by(|a, b| a.date.cmp(&b.date));
 
         let rules = self.auto_assign_rules.get_untracked();
-        let compiled_rules: Vec<(regex::Regex, ActivePane, Option<String>)> = rules
-            .iter()
-            .filter_map(|r| {
-                let pane = match r.pane.as_str() {
-                    "left" => ActivePane::Left,
-                    "right" => ActivePane::Right,
-                    "bottom" => ActivePane::Bottom,
-                    _ => return None,
-                };
-                crate::logic::compile_rule(&r.regex)
-                    .ok()
-                    .map(|re| (re, pane, r.category_override.clone()))
-            })
-            .collect();
-
-        let mut left = vec![];
-        let mut middle = vec![];
-        let mut right = vec![];
-        let mut bottom = vec![];
-
-        for t in filtered {
-            let mut matched_pane = None;
-            let mut overridden_category = None;
-            for (re, pane, cat_override) in &compiled_rules {
-                if re.is_match(&t.vendor) {
-                    matched_pane = Some(*pane);
-                    overridden_category = cat_override.clone();
-                    break;
-                }
-            }
-
-            let category = overridden_category.unwrap_or_else(|| t.category.clone());
-
-            // The item's transaction carries the (possibly overridden) category.
-            let txn = Transaction {
-                date: t.date.clone(),
-                vendor: t.vendor.clone(),
-                category,
-                amount_cents: t.amount_cents,
-                direction: t.direction,
-            };
-            let item = Item {
-                id: next_item_id(),
-                label: format_txn(&txn),
-                auto_matched: matched_pane.is_some(),
-                txn,
-            };
-
-            match matched_pane {
-                Some(ActivePane::Left) => left.push(item),
-                Some(ActivePane::Right) => right.push(item),
-                Some(ActivePane::Bottom) => bottom.push(item),
-                _ => middle.push(item),
-            }
-        }
+        let (left, middle, right, bottom) = classify_transactions(filtered, &rules);
 
         let left_len = left.len();
         let middle_len = middle.len();
@@ -333,7 +271,7 @@ impl AppState {
 mod tests {
     use super::*;
     use crate::dto::{Direction, Transaction};
-    use hho_types::AutoAssignRule;
+    use hho_types::{AutoAssignRule, RulePane};
 
     #[test]
     fn test_apply_month_filter_with_category_override() {
@@ -359,12 +297,12 @@ mod tests {
         state.auto_assign_rules.set(vec![
             AutoAssignRule {
                 regex: "STARBUCKS.*".to_string(),
-                pane: "left".to_string(),
+                pane: RulePane::Joint,
                 category_override: Some("Coffee & Tea".to_string()),
             },
             AutoAssignRule {
                 regex: "NETFLIX".to_string(),
-                pane: "right".to_string(),
+                pane: RulePane::Personal,
                 category_override: None,
             },
         ]);
