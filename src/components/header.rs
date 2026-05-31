@@ -15,41 +15,7 @@ fn get_filename(path: &str) -> &str {
 
 /// Formats month number and year to display text.
 fn format_month_year(month: i32, year: i32) -> String {
-    let month_name = match month {
-        1 => "Jan",
-        2 => "Feb",
-        3 => "Mar",
-        4 => "Apr",
-        5 => "May",
-        6 => "Jun",
-        7 => "Jul",
-        8 => "Aug",
-        9 => "Sep",
-        10 => "Oct",
-        11 => "Nov",
-        12 => "Dec",
-        _ => "",
-    };
-    format!("{} {}", month_name, year)
-}
-
-/// Translates month indices into full English month name strings.
-fn get_month_name(month: i32) -> &'static str {
-    match month {
-        1 => "January",
-        2 => "February",
-        3 => "March",
-        4 => "April",
-        5 => "May",
-        6 => "June",
-        7 => "July",
-        8 => "August",
-        9 => "September",
-        10 => "October",
-        11 => "November",
-        12 => "December",
-        _ => "Unknown",
-    }
+    format!("{} {}", crate::logic::get_month_abbr(month), year)
 }
 
 /// Triggers file export of a pane's transactions to CSV.
@@ -58,7 +24,7 @@ fn save_pane(state: AppState, pane: ActivePane, title: &str) {
     let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
     let month = state.selected_month.get_untracked();
     let year = state.selected_year.get_untracked();
-    let month_name = get_month_name(month).to_string();
+    let month_name = crate::logic::get_month_name(month).to_string();
     let title_str = title.to_string();
 
     spawn_local(async move {

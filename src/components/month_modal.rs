@@ -11,20 +11,7 @@ pub fn MonthModal() -> impl IntoView {
     let temp_year = RwSignal::new(state.selected_year.get_untracked());
     let temp_month = RwSignal::new(state.selected_month.get_untracked());
 
-    let months = [
-        (1, "Jan"),
-        (2, "Feb"),
-        (3, "Mar"),
-        (4, "Apr"),
-        (5, "May"),
-        (6, "Jun"),
-        (7, "Jul"),
-        (8, "Aug"),
-        (9, "Sep"),
-        (10, "Oct"),
-        (11, "Nov"),
-        (12, "Dec"),
-    ];
+    let months = crate::logic::MONTHS_ABBR;
 
     // Saves selected period and updates filters.
     let on_apply = move |_| {

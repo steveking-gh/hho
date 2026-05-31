@@ -160,6 +160,50 @@ pub fn match_month_year(date_str: &str, year: i32, month: i32) -> bool {
     t_year == year && t_month == month
 }
 
+/// Array of 1-based month numbers and their abbreviations.
+pub const MONTHS_ABBR: [(i32, &str); 12] = [
+    (1, "Jan"),
+    (2, "Feb"),
+    (3, "Mar"),
+    (4, "Apr"),
+    (5, "May"),
+    (6, "Jun"),
+    (7, "Jul"),
+    (8, "Aug"),
+    (9, "Sep"),
+    (10, "Oct"),
+    (11, "Nov"),
+    (12, "Dec"),
+];
+
+/// Translates month indices (1-12) into abbreviated English month name strings.
+pub fn get_month_abbr(month: i32) -> &'static str {
+    if (1..=12).contains(&month) {
+        MONTHS_ABBR[(month - 1) as usize].1
+    } else {
+        ""
+    }
+}
+
+/// Translates month indices (1-12) into full English month name strings.
+pub fn get_month_name(month: i32) -> &'static str {
+    match month {
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
+        _ => "Unknown",
+    }
+}
+
 /// Calculates the previous calendar month and year.
 /// Accepts year and 1-based month. Returns (prev_year, prev_month).
 pub fn get_previous_month_year(year: i32, month: i32) -> (i32, i32) {
