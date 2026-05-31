@@ -47,6 +47,50 @@ fn stringify_js(val: &JsValue) -> String {
     }
 }
 
+/// Summarizes a JsValue payload for debug logging to avoid large/unbounded log entries.
+fn summarize_js(val: &JsValue) -> String {
+    if val.is_null() || val.is_undefined() {
+        return "null".to_string();
+    }
+    if js_sys::Array::is_array(val) {
+        let arr = js_sys::Array::from(val);
+        return format!("[Array of {} items]", arr.length());
+    }
+    if let Some(s) = val.as_string() {
+        if s.len() > 100 {
+            return format!("\"{}...\" ({} chars)", &s[..97], s.len());
+        }
+        return format!("\"{}\"", s);
+    }
+    let stringified = stringify_js(val);
+    if stringified.len() < 120 {
+        return stringified;
+    }
+    if let Ok(keys) = js_sys::Reflect::own_keys(val) {
+        let mut parts = Vec::new();
+        for i in 0..keys.length() {
+            let key = keys.get(i);
+            if let Some(key_str) = key.as_string() {
+                if let Ok(prop_val) = js_sys::Reflect::get(val, &key) {
+                    let prop_summary = if js_sys::Array::is_array(&prop_val) {
+                        format!("[Array of {} items]", js_sys::Array::from(&prop_val).length())
+                    } else {
+                        let prop_str = stringify_js(&prop_val);
+                        if prop_str.len() > 120 {
+                            format!("[Object ({} bytes)]", prop_str.len())
+                        } else {
+                            prop_str
+                        }
+                    };
+                    parts.push(format!("{}: {}", key_str, prop_summary));
+                }
+            }
+        }
+        return format!("{{ {} }}", parts.join(", "));
+    }
+    stringified
+}
+
 /// Invoke a command with no arguments and deserialize its result.
 async fn call_unit<R: serde::de::DeserializeOwned>(cmd: &str) -> Result<R, String> {
     let state = crate::state::get_global_state();
@@ -56,7 +100,7 @@ async fn call_unit<R: serde::de::DeserializeOwned>(cmd: &str) -> Result<R, Strin
     let res = invoke_raw(cmd, JsValue::NULL).await;
     match res {
         Ok(v) => {
-            let res_str = stringify_js(&v);
+            let res_str = summarize_js(&v);
             if let Some(s) = state {
                 s.log(format!("[IPC Response] {cmd} success: {res_str}"));
             }
@@ -86,14 +130,14 @@ where
 {
     let state = crate::state::get_global_state();
     let args_val = to_args(args);
-    let args_str = stringify_js(&args_val);
+    let args_str = summarize_js(&args_val);
     if let Some(s) = state {
         s.log(format!("[IPC Request] {cmd} with args: {args_str}"));
     }
     let res = invoke_raw(cmd, args_val).await;
     match res {
         Ok(v) => {
-            let res_str = stringify_js(&v);
+            let res_str = summarize_js(&v);
             if let Some(s) = state {
                 s.log(format!("[IPC Response] {cmd} success: {res_str}"));
             }
@@ -157,14 +201,14 @@ pub async fn save_layout(left_width: f32, right_width: f32, bottom_h: f32, debug
         debug_h,
     };
     let args_val = to_args(&args);
-    let args_str = stringify_js(&args_val);
+    let args_str = summarize_js(&args_val);
     if let Some(s) = state {
         s.log(format!("[IPC Request] save_layout with args: {args_str}"));
     }
     let res = invoke_raw("save_layout", args_val).await;
     match res {
         Ok(v) => {
-            let res_str = stringify_js(&v);
+            let res_str = summarize_js(&v);
             if let Some(s) = state {
                 s.log(format!("[IPC Response] save_layout success: {res_str}"));
             }
@@ -183,14 +227,14 @@ pub async fn save_window_size(width: f64, height: f64) {
     let state = crate::state::get_global_state();
     let args = SaveWindowSizeArgs { width, height };
     let args_val = to_args(&args);
-    let args_str = stringify_js(&args_val);
+    let args_str = summarize_js(&args_val);
     if let Some(s) = state {
         s.log(format!("[IPC Request] save_window_size with args: {args_str}"));
     }
     let res = invoke_raw("save_window_size", args_val).await;
     match res {
         Ok(v) => {
-            let res_str = stringify_js(&v);
+            let res_str = summarize_js(&v);
             if let Some(s) = state {
                 s.log(format!("[IPC Response] save_window_size success: {res_str}"));
             }
@@ -244,7 +288,7 @@ pub async fn exit_app() {
     let res = invoke_raw("exit_app", JsValue::NULL).await;
     match res {
         Ok(v) => {
-            let res_str = stringify_js(&v);
+            let res_str = summarize_js(&v);
             if let Some(s) = state {
                 s.log(format!("[IPC Response] exit_app success: {res_str}"));
             }
