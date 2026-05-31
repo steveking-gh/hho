@@ -117,10 +117,6 @@ struct ConfigState {
     config: Mutex<UserConfig>,
 }
 
-// ── IPC types ─────────────────────────────────────────────────────────────────
-
-// OpenResult and LayoutConfig are defined in hho-types (shared with the frontend).
-
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
 /// Read a CSV into its header row and data rows (each a Vec of cell strings).
@@ -202,8 +198,6 @@ async fn pick_csv(
     window: tauri::Window,
     state: State<'_, ConfigState>,
 ) -> Result<OpenResult, String> {
-    use tauri_plugin_dialog::DialogExt;
-
     let start_dir: Option<PathBuf> = {
         let cfg = state.config.lock().unwrap();
         cfg.last_opened_dir
@@ -237,7 +231,6 @@ async fn pick_csv(
 #[tauri::command]
 async fn open_csv(
     path: String,
-    _app: AppHandle,
     state: State<'_, ConfigState>,
 ) -> Result<OpenResult, String> {
     let pb = PathBuf::from(&path);
