@@ -399,7 +399,7 @@ async fn save_pane_transactions(
 
     let mut wtr = csv::Writer::from_path(&path).map_err(|e| format!("failed to create file: {e}"))?;
 
-    wtr.write_record(&["Date", "Vendor", "Amount"]).map_err(|e| format!("failed to write header: {e}"))?;
+    wtr.write_record(&["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
 
     let mut total_cents = 0i64;
     for t in &transactions {
@@ -412,7 +412,7 @@ async fn save_pane_transactions(
         };
         let amount_str = format!("{}{}.{:02}", sign, dollars, cents_rem);
 
-        wtr.write_record(&[&t.date, &t.vendor, &amount_str]).map_err(|e| format!("failed to write record: {e}"))?;
+        wtr.write_record(&[&t.date, &t.vendor, &amount_str, &t.category]).map_err(|e| format!("failed to write record: {e}"))?;
 
         match t.direction {
             hho_types::Direction::Credit => total_cents += amount_cents,
@@ -435,7 +435,7 @@ async fn save_pane_transactions(
     let total_str = format!("{}{}.{:02}", total_sign, total_dollars, total_cents_rem);
 
     writeln!(file).map_err(|e| format!("failed to write blank line: {e}"))?;
-    writeln!(file, "TOTAL,{}", total_str).map_err(|e| format!("failed to write total: {e}"))?;
+    writeln!(file, "TOTAL,,{},", total_str).map_err(|e| format!("failed to write total: {e}"))?;
 
     Ok(())
 }
@@ -581,6 +581,7 @@ mod tests {
                 fingerprint: "date,description,amount".into(),
                 date_col: 0,
                 vendor_col: 1,
+                category_col: None,
                 ignore_cols: vec![],
                 amount: hho_types::AmountScheme::SingleSigned {
                     amount_col: 2,

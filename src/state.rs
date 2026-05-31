@@ -14,7 +14,7 @@ fn format_txn(t: &Transaction) -> String {
         Direction::Debit => "-",
         Direction::Credit => "+",
     };
-    format!("{} │ {} │ {}${}.{:02}", t.date, t.vendor, sign, dollars, cents)
+    format!("{} │ {} │ {}${}.{:02} │ {}", t.date, t.vendor, sign, dollars, cents, t.category)
 }
 
 // ── Drag types ────────────────────────────────────────────────────────────────
@@ -288,6 +288,7 @@ impl AppState {
                 direction: t.direction,
                 date: t.date.clone(),
                 auto_matched: matched_pane.is_some(),
+                category: t.category.clone(),
             };
 
             match matched_pane {

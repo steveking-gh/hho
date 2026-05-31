@@ -175,9 +175,14 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
     let date = parse_date(row.get(inst.date_col)?)?;
     let vendor = row.get(inst.vendor_col)?.trim().to_string();
     let (amount_cents, direction) = resolve_amount(&inst.amount, row)?;
+    let category = match inst.category_col {
+        Some(col) => row.get(col).map(|s| s.trim().to_string()).unwrap_or_default(),
+        None => String::new(),
+    };
     Some(Transaction {
         date,
         vendor,
+        category,
         amount_cents,
         direction,
     })
@@ -207,10 +212,11 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
 
     let amount_col = find_col(headers, &["amount", "amt"]).unwrap_or(0);
     let type_col = find_col(headers, &["type"]);
+    let category_col = find_col(headers, &["category"]);
 
-    // Hide every column not used as date, vendor, or amount by default.
+    // Hide every column not used as date, vendor, amount, or category by default.
     let ignore_cols = (0..headers.len())
-        .filter(|i| *i != date_col && *i != vendor_col && *i != amount_col)
+        .filter(|i| *i != date_col && *i != vendor_col && *i != amount_col && Some(*i) != category_col)
         .collect();
 
     SuggestedMapping {
@@ -218,6 +224,7 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
         vendor_col,
         amount_col,
         type_col,
+        category_col,
         scheme: "single_signed".to_string(),
         debit_is_negative: true,
         ignore_cols,
@@ -317,7 +324,8 @@ mod tests {
             fingerprint: "transaction date,post date,description,category,type,amount,memo".into(),
             date_col: 0,
             vendor_col: 2,
-            ignore_cols: vec![1, 3, 4, 6],
+            category_col: Some(3),
+            ignore_cols: vec![1, 4, 6],
             amount: AmountScheme::SingleSigned {
                 amount_col: 5,
                 debit_is_negative: true,
@@ -333,6 +341,7 @@ mod tests {
         let t = parse_row(&chase(), &r).unwrap();
         assert_eq!(t.date, "2026-05-18");
         assert_eq!(t.vendor, "BUDGET RENT A CAR");
+        assert_eq!(t.category, "Travel");
         assert_eq!(t.amount_cents, 28697);
         assert_eq!(t.direction, Direction::Debit);
     }
@@ -345,6 +354,7 @@ mod tests {
         let t = parse_row(&chase(), &r).unwrap();
         assert_eq!(t.amount_cents, 336717);
         assert_eq!(t.direction, Direction::Credit);
+        assert_eq!(t.category, "");
     }
 
     // ── Type-column scheme ──────────────────────────────────────────────────────
@@ -394,7 +404,8 @@ mod tests {
         assert_eq!(s.vendor_col, 2);
         assert_eq!(s.amount_col, 5);
         assert_eq!(s.type_col, Some(4));
-        assert_eq!(s.ignore_cols, vec![1, 3, 4, 6]);
+        assert_eq!(s.category_col, Some(3));
+        assert_eq!(s.ignore_cols, vec![1, 4, 6]);
     }
 
     // ── Serialization round-trips (the cross-crate / persistence contract) ──────
@@ -428,6 +439,7 @@ mod tests {
             fingerprint: "date,description,amount,transaction type".into(),
             date_col: 0,
             vendor_col: 1,
+            category_col: None,
             ignore_cols: vec![],
             amount: AmountScheme::TypeColumn {
                 amount_col: 2,

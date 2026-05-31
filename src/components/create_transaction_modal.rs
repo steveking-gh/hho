@@ -25,6 +25,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
 
     let (date_input, set_date_input) = signal(default_date);
     let (vendor_input, set_vendor_input) = signal("".to_string());
+    let (category_input, set_category_input) = signal("".to_string());
     let (amount_input, set_amount_input) = signal("".to_string());
     let (direction_input, set_direction_input) = signal(Direction::Debit);
 
@@ -39,6 +40,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
     let on_save_click = move |_| {
         let date_val = date_input.get_untracked();
         let vendor_val = vendor_input.get_untracked().trim().to_string();
+        let category_val = category_input.get_untracked().trim().to_string();
         let amount_val = amount_input.get_untracked();
         let direction_val = direction_input.get_untracked();
 
@@ -54,13 +56,14 @@ pub fn CreateTransactionModal() -> impl IntoView {
         let new_txn = Transaction {
             date: date_val.clone(),
             vendor: vendor_val.clone(),
+            category: category_val.clone(),
             amount_cents: cents,
             direction: direction_val,
         };
 
         state.log(format!(
-            "[CreateTransaction] adding manual transaction: date={} vendor={} amount_cents={} direction={:?}",
-            new_txn.date, new_txn.vendor, new_txn.amount_cents, new_txn.direction
+            "[CreateTransaction] adding manual transaction: date={} vendor={} category={} amount_cents={} direction={:?}",
+            new_txn.date, new_txn.vendor, new_txn.category, new_txn.amount_cents, new_txn.direction
         ));
 
         state.raw_transactions.update(|txns| {
@@ -102,6 +105,17 @@ pub fn CreateTransactionModal() -> impl IntoView {
                         on:input=move |ev| set_vendor_input.set(event_target_value(&ev))
                         placeholder="Enter vendor name"
                         autofocus
+                    />
+                </div>
+
+                <div class="modal-field">
+                    <label for="manual-category">"Category"</label>
+                    <input
+                        id="manual-category"
+                        type="text"
+                        prop:value=category_input
+                        on:input=move |ev| set_category_input.set(event_target_value(&ev))
+                        placeholder="Enter category (optional)"
                     />
                 </div>
 

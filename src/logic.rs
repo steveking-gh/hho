@@ -30,6 +30,7 @@ pub struct Item {
     pub direction:    hho_types::Direction,
     pub date:         String,
     pub auto_matched: bool,
+    pub category:     String,
 }
 
 /// Calculates the net total sum of pane items in cents.
@@ -178,6 +179,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
                 date: "".to_string(),
                 auto_matched: false,
+                category: "".to_string(),
             })
             .collect()
     }
@@ -363,6 +365,7 @@ mod tests {
                 direction: hho_types::Direction::Credit,
                 date: "".to_string(),
                 auto_matched: false,
+                category: "".to_string(),
             },
             Item {
                 id: 2,
@@ -371,6 +374,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
                 date: "".to_string(),
                 auto_matched: false,
+                category: "".to_string(),
             },
         ];
         assert_eq!(calculate_total_cents(&items), 750);
@@ -386,6 +390,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
                 date: "2026-05-18".into(),
                 auto_matched: false,
+                category: "".to_string(),
             }
         ];
         let dest = vec![
@@ -396,6 +401,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
                 date: "2026-05-20".into(),
                 auto_matched: false,
+                category: "".to_string(),
             }
         ];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));

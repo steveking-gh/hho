@@ -47,6 +47,8 @@ pub struct Institution {
     pub date_col: usize,
     pub vendor_col: usize,
     #[serde(default)]
+    pub category_col: Option<usize>,
+    #[serde(default)]
     pub ignore_cols: Vec<usize>,
     #[serde(flatten)]
     pub amount: AmountScheme,
@@ -57,6 +59,7 @@ pub struct Institution {
 pub struct Transaction {
     pub date: String,      // canonical "YYYY-MM-DD"
     pub vendor: String,
+    pub category: String,
     pub amount_cents: i64, // magnitude, always >= 0
     pub direction: Direction,
 }
@@ -68,6 +71,7 @@ pub struct SuggestedMapping {
     pub vendor_col: usize,
     pub amount_col: usize,
     pub type_col: Option<usize>,
+    pub category_col: Option<usize>,
     pub scheme: String, // "single_signed" | "type_column"
     pub debit_is_negative: bool,
     pub ignore_cols: Vec<usize>,

@@ -25,6 +25,20 @@ fn col_options(headers: &[String]) -> impl IntoView {
         .collect_view()
 }
 
+/// Build dropdown option entries with a 'None' placeholder for the Category selection.
+fn category_col_options(headers: &[String]) -> impl IntoView {
+    let none_opt = view! { <option value="none">"None"</option> };
+    let rest = headers
+        .iter()
+        .enumerate()
+        .map(|(i, h)| view! { <option value=i.to_string()>{format!("{i}: {h}")}</option> })
+        .collect_view();
+    view! {
+        {none_opt}
+        {rest}
+    }
+}
+
 #[component]
 pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let state: AppState = use_context().expect("AppState must be provided at root");
@@ -36,6 +50,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let name              = RwSignal::new(String::new());
     let date_col          = RwSignal::new(s.date_col);
     let vendor_col        = RwSignal::new(s.vendor_col);
+    let category_col      = RwSignal::new(s.category_col);
     let amount_col        = RwSignal::new(s.amount_col);
     let scheme            = RwSignal::new(s.scheme.clone());
     let debit_is_negative = RwSignal::new(s.debit_is_negative);
@@ -58,6 +73,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let headers       = pm.headers.clone();
     let h_date        = pm.headers.clone();
     let h_vendor      = pm.headers.clone();
+    let h_category    = pm.headers.clone();
     let h_amount      = pm.headers.clone();
     let h_type        = pm.headers.clone();
     let sample_rows   = pm.sample_rows.clone();
@@ -102,6 +118,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
             fingerprint: fingerprint.clone(),
             date_col: date_col.get_untracked(),
             vendor_col: vendor_col.get_untracked(),
+            category_col: category_col.get_untracked(),
             ignore_cols,
             amount,
         };
@@ -178,6 +195,23 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                         on:change=move |e| vendor_col.set(event_target_value(&e).parse().unwrap_or(0))
                     >
                         {col_options(&h_vendor)}
+                    </select>
+                </label>
+
+                <label class="modal-field">
+                    <span>"Category column (optional)"</span>
+                    <select
+                        prop:value=move || category_col.get().map(|c| c.to_string()).unwrap_or_else(|| "none".to_string())
+                        on:change=move |e| {
+                            let val = event_target_value(&e);
+                            if val == "none" {
+                                category_col.set(None);
+                            } else {
+                                category_col.set(val.parse().ok());
+                            }
+                        }
+                    >
+                        {category_col_options(&h_category)}
                     </select>
                 </label>
 

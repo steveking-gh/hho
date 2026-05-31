@@ -125,6 +125,7 @@ pub fn Header() -> impl IntoView {
             .map(|item| Transaction {
                 date: item.date.clone(),
                 vendor: get_vendor_for_item(state, item),
+                category: item.category.clone(),
                 amount_cents: item.amount_cents,
                 direction: item.direction,
             })
@@ -152,6 +153,7 @@ pub fn Header() -> impl IntoView {
             .map(|item| Transaction {
                 date: item.date.clone(),
                 vendor: get_vendor_for_item(state, item),
+                category: item.category.clone(),
                 amount_cents: item.amount_cents,
                 direction: item.direction,
             })
