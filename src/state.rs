@@ -15,6 +15,7 @@ fn format_txn(t: &Transaction) -> String {
 // ── Drag types ────────────────────────────────────────────────────────────────
 
 /// Identifies which resize boundary is being dragged.
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DragTarget {
     LeftHandle,    // vertical divider: Joint | Unassigned
@@ -94,7 +95,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let app = Self {
+        Self {
             active_pane:  RwSignal::new(ActivePane::Middle),
             left_items:   RwSignal::new(vec![]),
             middle_items: RwSignal::new(vec![]),
@@ -125,15 +126,7 @@ impl AppState {
             assign_modal_item: RwSignal::new(None),
             is_rules_modal_open: RwSignal::new(false),
             is_create_transaction_modal_open: RwSignal::new(false),
-        };
-        // Sets default month and year to previous calendar month from current date.
-        let now = js_sys::Date::new_0();
-        let current_y = now.get_full_year() as i32;
-        let current_m = now.get_month() as i32 + 1;
-        let (prev_y, prev_m) = crate::logic::get_previous_month_year(current_y, current_m);
-        app.selected_year.set(prev_y);
-        app.selected_month.set(prev_m);
-        app
+        }
     }
 
     /// Replace the Unassigned pane with parsed transactions, select the
@@ -331,42 +324,9 @@ mod tests {
     use crate::dto::{Direction, Transaction};
     use hho_types::AutoAssignRule;
 
-    fn create_test_state() -> AppState {
-        AppState {
-            active_pane:  RwSignal::new(ActivePane::Middle),
-            left_items:   RwSignal::new(vec![]),
-            middle_items: RwSignal::new(vec![]),
-            right_items:  RwSignal::new(vec![]),
-            bottom_items: RwSignal::new(vec![]),
-            left_sel:     RwSignal::new(None),
-            middle_sel:   RwSignal::new(None),
-            right_sel:    RwSignal::new(None),
-            bottom_sel:   RwSignal::new(None),
-            debug_log:    RwSignal::new(vec![]),
-            font_scale:   RwSignal::new(10.0),
-            left_width:   RwSignal::new(200.0),
-            right_width:  RwSignal::new(200.0),
-            bottom_h:     RwSignal::new(200.0),
-            debug_h:      RwSignal::new(150.0),
-            drag:         RwSignal::new(None),
-            pending_mapping: RwSignal::new(None),
-            recent_files: RwSignal::new(vec![]),
-            selected_year: RwSignal::new(2026),
-            selected_month: RwSignal::new(5),
-            raw_transactions: RwSignal::new(vec![]),
-            current_institution: RwSignal::new(None),
-            is_month_modal_open: RwSignal::new(false),
-            is_loading_file: RwSignal::new(false),
-            auto_assign_rules: RwSignal::new(vec![]),
-            assign_modal_item: RwSignal::new(None),
-            is_rules_modal_open: RwSignal::new(false),
-            is_create_transaction_modal_open: RwSignal::new(false),
-        }
-    }
-
     #[test]
     fn test_apply_month_filter_with_category_override() {
-        let state = create_test_state();
+        let state = AppState::new();
         state.selected_year.set(2026);
         state.selected_month.set(5);
         state.raw_transactions.set(vec![

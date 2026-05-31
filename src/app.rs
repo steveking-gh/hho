@@ -128,6 +128,14 @@ pub fn App() -> impl IntoView {
     let state = AppState::new();
     provide_context(state);
 
+    // Determines and sets the initial month and year from the current clock.
+    let now = js_sys::Date::new_0();
+    let current_y = now.get_full_year() as i32;
+    let current_m = now.get_month() as i32 + 1;
+    let (prev_y, prev_m) = crate::logic::get_previous_month_year(current_y, current_m);
+    state.selected_year.set(prev_y);
+    state.selected_month.set(prev_m);
+
     state.refresh_recent_files();
     load_layout_from_config(state);
 
@@ -464,42 +472,9 @@ pub fn App() -> impl IntoView {
 mod tests {
     use super::*;
 
-    fn create_test_state() -> AppState {
-        AppState {
-            active_pane:  RwSignal::new(ActivePane::Middle),
-            left_items:   RwSignal::new(vec![]),
-            middle_items: RwSignal::new(vec![]),
-            right_items:  RwSignal::new(vec![]),
-            bottom_items: RwSignal::new(vec![]),
-            left_sel:     RwSignal::new(None),
-            middle_sel:   RwSignal::new(None),
-            right_sel:    RwSignal::new(None),
-            bottom_sel:   RwSignal::new(None),
-            debug_log:    RwSignal::new(vec![]),
-            font_scale:   RwSignal::new(10.0),
-            left_width:   RwSignal::new(200.0),
-            right_width:  RwSignal::new(200.0),
-            bottom_h:     RwSignal::new(200.0),
-            debug_h:      RwSignal::new(150.0),
-            drag:         RwSignal::new(None),
-            pending_mapping: RwSignal::new(None),
-            recent_files: RwSignal::new(vec![]),
-            selected_year: RwSignal::new(2026),
-            selected_month: RwSignal::new(5),
-            raw_transactions: RwSignal::new(vec![]),
-            current_institution: RwSignal::new(None),
-            is_month_modal_open: RwSignal::new(false),
-            is_loading_file: RwSignal::new(false),
-            auto_assign_rules: RwSignal::new(vec![]),
-            assign_modal_item: RwSignal::new(None),
-            is_rules_modal_open: RwSignal::new(false),
-            is_create_transaction_modal_open: RwSignal::new(false),
-        }
-    }
-
     #[test]
     fn test_find_matching_rule_returns_correct_indices() {
-        let state = create_test_state();
+        let state = AppState::new();
         state.auto_assign_rules.set(vec![
             hho_types::AutoAssignRule {
                 regex: "STARBUCKS.*".to_string(),

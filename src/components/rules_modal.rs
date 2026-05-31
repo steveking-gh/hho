@@ -206,7 +206,7 @@ pub fn RulesModal() -> impl IntoView {
         // Renders the nested dialog when editing a rule.
         {move || editing_rule_index.get().map(|idx| {
             let draft = rules_draft.get_untracked();
-            if idx >= draft.len() { return view! {}.into_any(); }
+            if idx >= draft.len() { return Option::<String>::None.into_any(); }
 
             let rule_to_edit = draft[idx].clone();
             let preview_vendor = find_preview_vendor(state, &rule_to_edit.regex);

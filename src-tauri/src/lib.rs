@@ -392,11 +392,11 @@ async fn save_pane_transactions(
 fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), String> {
     let mut wtr = csv::Writer::from_path(path).map_err(|e| format!("failed to create file: {e}"))?;
 
-    wtr.write_record(&["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
+    wtr.write_record(["Date", "Vendor", "Amount", "Category"]).map_err(|e| format!("failed to write header: {e}"))?;
 
     for t in transactions {
         let amount_str = hho_types::format_cents(hho_types::net_cents(t.amount_cents, t.direction));
-        wtr.write_record(&[&t.date, &t.vendor, &amount_str, &t.category])
+        wtr.write_record([&t.date, &t.vendor, &amount_str, &t.category])
             .map_err(|e| format!("failed to write record: {e}"))?;
     }
 
@@ -624,14 +624,16 @@ mod tests {
 
     #[test]
     fn save_auto_assign_rules_replaces_all_rules_in_config() {
-        let mut cfg = UserConfig::default();
-        cfg.auto_assign_rules = vec![
-            AutoAssignRule {
-                regex: "OLD".to_string(),
-                pane: "left".to_string(),
-                category_override: None,
-            }
-        ];
+        let mut cfg = UserConfig {
+            auto_assign_rules: vec![
+                AutoAssignRule {
+                    regex: "OLD".to_string(),
+                    pane: "left".to_string(),
+                    category_override: None,
+                }
+            ],
+            ..Default::default()
+        };
         let new_rules = vec![
             AutoAssignRule {
                 regex: "NEW".to_string(),
