@@ -22,6 +22,26 @@ pub fn Pane(
     let items_sig = state.items_for(pane_id);
     let sel_sig = state.sel_for(pane_id);
     let is_active = move || state.active_pane.get() == pane_id;
+    let container_ref = NodeRef::<leptos::html::Div>::new();
+
+    // Scroll the selected item into view reactively when selection or items change.
+    Effect::new(move |_| {
+        let _ = sel_sig.get();
+        let _ = items_sig.get();
+
+        if let Some(container) = container_ref.get() {
+            if let Ok(Some(el)) = container.query_selector(".row-item.selected") {
+                let options = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&options, &"block".into(), &"nearest".into());
+                let _ = js_sys::Reflect::set(&options, &"inline".into(), &"nearest".into());
+                if let Ok(method) = js_sys::Reflect::get(&el, &"scrollIntoView".into()) {
+                    if let Ok(func) = method.dyn_into::<js_sys::Function>() {
+                        let _ = js_sys::Reflect::apply(&func, &el, &js_sys::Array::of1(&options));
+                    }
+                }
+            }
+        }
+    });
 
     // Derive inline style from layout signals.
     // Left / right panes: explicit width, flex: none.
@@ -86,36 +106,17 @@ pub fn Pane(
                     }
                 }}
             </div>
-            <div class="pane-rows">
+            <div class="pane-rows" node_ref=container_ref>
                 {move || {
                     let items = items_sig.get();
                     items
                         .into_iter()
                         .enumerate()
                         .map(|(i, item)| {
-                            let el_ref = NodeRef::<leptos::html::Div>::new();
                             let is_selected = move || sel_sig.get() == Some(i);
-
-                            // Scroll selected item into view reactively.
-                            Effect::new(move |_| {
-                                if is_selected() {
-                                    if let Some(el) = el_ref.get() {
-                                        let options = js_sys::Object::new();
-                                        let _ = js_sys::Reflect::set(&options, &"block".into(), &"nearest".into());
-                                        let _ = js_sys::Reflect::set(&options, &"inline".into(), &"nearest".into());
-                                        if let Ok(method) = js_sys::Reflect::get(&el, &"scrollIntoView".into()) {
-                                            if let Ok(func) = method.dyn_into::<js_sys::Function>() {
-                                                let _ = js_sys::Reflect::apply(&func, &el, &js_sys::Array::of1(&options));
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-
                             let label = item.label.clone();
                             view! {
                                 <div
-                                    node_ref=el_ref
                                     class="row-item"
                                     class:selected=is_selected
                                     class:credit=move || item.txn.direction == hho_types::Direction::Credit

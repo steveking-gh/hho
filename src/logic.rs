@@ -81,7 +81,7 @@ pub fn nav_down(items: &[Item], sel: Option<usize>) -> Option<usize> {
 
 // ── Item transfer ────────────────────────────────────────────────────────────
 
-/// Move the item at `sel` from `source` to the end of `dest`.
+/// Move the item at `sel` from `source` to `dest`, maintaining chronological order by date in `dest`.
 ///
 /// Returns `(new_source, new_dest, new_source_sel)`.
 /// No-op when `sel` is `None` or out of range — returns inputs unchanged.
