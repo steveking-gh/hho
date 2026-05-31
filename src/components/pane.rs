@@ -81,10 +81,45 @@ pub fn Pane(
                     let total_cents = crate::logic::calculate_total_cents(&items);
                     let main_header = format!("{}:  {}", title, hho_types::format_dollars(total_cents));
 
-                    if pane_id == ActivePane::Bottom {
+                    let is_printable = pane_id == ActivePane::Left || pane_id == ActivePane::Right;
+
+                    let header_title_element = if is_printable {
+                        let print_target = state.print_target;
+                        let handle_print = move |e: leptos::ev::MouseEvent| {
+                            e.stop_propagation();
+                            print_target.set(Some(pane_id));
+                            if let Some(w) = web_sys::window() {
+                                // Schedules the browser print trigger.
+                                let cb = wasm_bindgen::closure::Closure::once_into_js(move || {
+                                    if let Some(w) = web_sys::window() {
+                                        let _ = w.print();
+                                        print_target.set(None);
+                                    }
+                                });
+                                let _ = w.request_animation_frame(cb.as_ref().unchecked_ref());
+                            }
+                        };
                         view! {
-                            <div class="pane-header-title">{main_header}</div>
+                            <div class="pane-header-top">
+                                <div class="pane-header-title">{main_header.clone()}</div>
+                                <button class="print-btn" on:click=handle_print title="Print transactions">
+                                    <svg class="print-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                                        <rect x="6" y="14" width="12" height="8"></rect>
+                                    </svg>
+                                    <span>"Print"</span>
+                                </button>
+                            </div>
                         }.into_any()
+                    } else {
+                        view! {
+                            <div class="pane-header-title">{main_header.clone()}</div>
+                        }.into_any()
+                    };
+
+                    if pane_id == ActivePane::Bottom {
+                        header_title_element
                     } else {
                         let categories = hho_types::summarize_by_category(
                             items.iter().map(|item| {
@@ -100,7 +135,7 @@ pub fn Pane(
                             .collect_view();
 
                         view! {
-                            <div class="pane-header-title">{main_header}</div>
+                            {header_title_element}
                             {cat_rows}
                         }.into_any()
                     }

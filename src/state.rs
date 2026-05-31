@@ -84,6 +84,8 @@ pub struct AppState {
     pub is_rules_modal_open: RwSignal<bool>,
     // State signal controlling the manual transaction creation modal.
     pub is_create_transaction_modal_open: RwSignal<bool>,
+    // State signal representing the active print target pane.
+    pub print_target: RwSignal<Option<ActivePane>>,
 }
 
 impl AppState {
@@ -119,6 +121,7 @@ impl AppState {
             assign_modal_item: RwSignal::new(None),
             is_rules_modal_open: RwSignal::new(false),
             is_create_transaction_modal_open: RwSignal::new(false),
+            print_target: RwSignal::new(None),
         }
     }
 

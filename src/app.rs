@@ -14,6 +14,7 @@ use crate::components::{
     mapping_modal::MappingModal,
     month_modal::MonthModal,
     pane::Pane,
+    print_view::PrintView,
     resize_handle::{ResizeDir, ResizeHandle},
     rule_editor_modal::RuleEditorModal,
     rules_modal::RulesModal,
@@ -543,6 +544,9 @@ pub fn App() -> impl IntoView {
 
             // Renders the manual transaction creation modal when open.
             {move || state.is_create_transaction_modal_open.get().then(|| view! { <CreateTransactionModal /> })}
+
+            // Print view component for physical printing or PDF export.
+            <PrintView />
         </div>
     }
 }

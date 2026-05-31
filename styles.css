@@ -884,3 +884,146 @@ body {
   z-index: 200;
   background-color: rgba(0, 0, 0, 0.7);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Pane Header Print Elements
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pane-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.3rem;
+}
+
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(245, 166, 35, 0.1);
+  border: 0.1rem solid rgba(245, 166, 35, 0.4);
+  color: rgb(245, 165, 35);
+  padding: 0.3rem 0.8rem;
+  border-radius: 0.3rem;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+
+.print-btn:hover {
+  background: rgba(245, 166, 35, 0.25);
+  border-color: rgb(245, 165, 35);
+  box-shadow: 0 0 0.8rem rgba(245, 166, 35, 0.2);
+}
+
+.print-btn:active {
+  transform: scale(0.95);
+}
+
+.print-icon {
+  flex-shrink: 0;
+}
+
+.print-view {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Print Stylesheet
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+  
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .app-container {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .app-container > *:not(.print-view) {
+    display: none !important;
+  }
+
+  .print-view {
+    display: block !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    width: 100%;
+  }
+
+  .print-view h1 {
+    font-size: 18pt;
+    margin-bottom: 1rem;
+    color: #333;
+    border-bottom: 2px solid #333;
+    padding-bottom: 0.5rem;
+  }
+
+  .print-view table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .print-view th {
+    font-weight: bold;
+    text-align: left;
+    border-bottom: 2px solid #666;
+    padding: 6px 8px;
+    font-size: 10pt;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  .print-view td {
+    border-bottom: 1px solid #ddd;
+    padding: 6px 8px;
+    font-size: 10pt;
+  }
+
+  .print-view td.amount, .print-view th.amount {
+    text-align: right;
+  }
+
+  .print-view tr {
+    break-inside: avoid;
+  }
+
+  .print-view thead {
+    display: table-header-group;
+  }
+
+  .print-view .subtotal-row td {
+    font-size: 9.5pt;
+    color: #555;
+    border-bottom: 1px dashed #ddd;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .print-view .grand-total-row td {
+    font-size: 11pt;
+    font-weight: bold;
+    border-top: 2px solid #666;
+    border-bottom: 2px double #666;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
