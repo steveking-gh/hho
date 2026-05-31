@@ -886,7 +886,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Pane Header Print Elements
+   Pane Header Action Elements
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .pane-header-top {
@@ -897,7 +897,13 @@ body {
   margin-bottom: 0.3rem;
 }
 
-.print-btn {
+.pane-header-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.pane-action-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -915,17 +921,17 @@ body {
   letter-spacing: 0.05rem;
 }
 
-.print-btn:hover {
+.pane-action-btn:hover {
   background: rgba(245, 166, 35, 0.25);
   border-color: rgb(245, 165, 35);
   box-shadow: 0 0 0.8rem rgba(245, 166, 35, 0.2);
 }
 
-.print-btn:active {
+.pane-action-btn:active {
   transform: scale(0.95);
 }
 
-.print-icon {
+.pane-action-btn svg {
   flex-shrink: 0;
 }
 

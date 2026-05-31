@@ -19,7 +19,7 @@ fn format_month_year(month: i32, year: i32) -> String {
 }
 
 /// Triggers file export of a pane's transactions to CSV.
-fn save_pane(state: AppState, pane: ActivePane, title: &str) {
+pub fn save_pane(state: AppState, pane: ActivePane, title: &str) {
     let items = state.items_for(pane).get_untracked();
     let txns: Vec<Transaction> = items.iter().map(|item| item.to_transaction()).collect();
     let month = state.selected_month.get_untracked();
@@ -29,14 +29,14 @@ fn save_pane(state: AppState, pane: ActivePane, title: &str) {
 
     spawn_local(async move {
         state.log(format!(
-            "[Header] Saving {title_str} transactions to CSV (count={})",
+            "[Save] Saving {title_str} transactions to CSV (count={})",
             txns.len()
         ));
         if let Err(e) =
             crate::ipc::save_pane_transactions(title_str.clone(), month_name, year, txns).await
         {
             state.log(format!(
-                "[Header] Failed to save {title_str} transactions: {e}"
+                "[Save] Failed to save {title_str} transactions: {e}"
             ));
         }
     });
@@ -104,21 +104,7 @@ pub fn Header() -> impl IntoView {
         state.is_create_transaction_modal_open.set(true);
     };
 
-    // Triggers file export of the Joint pane transactions to CSV.
-    let on_save_joint = move |_| {
-        if state.any_modal_open() {
-            return;
-        }
-        save_pane(state, ActivePane::Left, "Joint");
-    };
 
-    // Triggers file export of the Personal pane transactions to CSV.
-    let on_save_personal = move |_| {
-        if state.any_modal_open() {
-            return;
-        }
-        save_pane(state, ActivePane::Right, "Personal");
-    };
 
     // Register window click listener to auto-close dropdown when clicking outside.
     let close_handle = window_event_listener(leptos::ev::click, move |_| {
@@ -199,15 +185,6 @@ pub fn Header() -> impl IntoView {
                     "New Transaction"
                 </button>
 
-                <button class="header-btn" on:click=on_save_joint>
-                    <span class="btn-icon">"💾"</span>
-                    "Save Joint"
-                </button>
-
-                <button class="header-btn" on:click=on_save_personal>
-                    <span class="btn-icon">"💾"</span>
-                    "Save Personal"
-                </button>
             </div>
 
             <div class="header-branding">
