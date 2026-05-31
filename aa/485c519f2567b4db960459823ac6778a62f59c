@@ -1,0 +1,52 @@
+src/state.rs
+  s_0e58f6223bcdc9::t_8a7d1b6eaa23cc 5
+  s_0e58f6223bcdc9::t_a05fe33fe5c4aa 11-12
+  s_0e58f6223bcdc9::t_94a9181182786a 260
+  s_0e58f6223bcdc9::t_8f958c12c737df 282-284,286,289-292,294
+  s_0e58f6223bcdc9::t_6988f44ac9cc10 285
+  s_0e58f6223bcdc9::t_ab0bc260f470f8 406,414
+src-tauri/src/lib.rs
+  s_0e58f6223bcdc9::t_82e71871ffeb8d 398-400,412-415,418-419,421-423,426,433-434
+src/app.rs
+  s_0e58f6223bcdc9::t_0ada9a65c1572a 98
+  s_0e58f6223bcdc9::t_15679e656934a0 405
+  s_0e58f6223bcdc9::t_e85961abb29180 12
+src/components/pane.rs
+  s_0e58f6223bcdc9::t_9794a71e873297 72
+  s_0e58f6223bcdc9::t_4be4498bbe3b0b 122
+  s_0e58f6223bcdc9::t_88d173cfe880e1 63,70-71,73-74,78-79
+hho-types/src/lib.rs
+  s_0e58f6223bcdc9::t_99e77bda4a68b3 111-165
+  s_0e58f6223bcdc9::t_d8cd7ef33ed0dd 211-260
+  s_0e58f6223bcdc9::t_03c248fe834237 10-11
+src/components/rule_editor_modal.rs
+  s_0e58f6223bcdc9::t_9dd84deb0ce835 44-49,51
+src/components/header.rs
+  s_0e58f6223bcdc9::t_4af87da2f4d9b3 123
+  s_0e58f6223bcdc9::t_e30f052aaa451f 142
+  s_0e58f6223bcdc9::t_0cee3648299fa7 6
+src/logic.rs
+  s_0e58f6223bcdc9::t_180c54c0c32eb0 441-447
+  s_0e58f6223bcdc9::t_fdbfbc8855d074 24-29,32-35,39,41,50
+  s_0e58f6223bcdc9::t_aab3940d25b950 104
+  s_0e58f6223bcdc9::t_4df4d6eff7314d 38,40,42,54-58
+  s_0e58f6223bcdc9::t_5432dcb787fec0 192-198
+  s_0e58f6223bcdc9::t_72dd37d752790b 381-387,393-399
+  s_0e58f6223bcdc9::t_ec51f770c9e64f 412-418,426-432,436-437
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "aa485c519f2567b4db960459823ac6778a62f59c",
+  "prompts": {},
+  "sessions": {
+    "s_0e58f6223bcdc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "949d2bf4-5973-410c-aac1-10135db91fe8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Steve King <12994437+steveking-gh@users.noreply.github.com>"
+    }
+  }
+}
