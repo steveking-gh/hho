@@ -4,6 +4,17 @@
 use crate::dto::{PendingMapping, Transaction};
 use crate::logic::{classify_transactions, transfer_item, ActivePane, Item};
 use leptos::prelude::*;
+use std::cell::Cell;
+
+thread_local! {
+    // Global state cell for asynchronous or non-reactive context access.
+    static GLOBAL_STATE: Cell<Option<AppState>> = const { Cell::new(None) };
+}
+
+/// Retrieves the global AppState instance.
+pub fn get_global_state() -> Option<AppState> {
+    GLOBAL_STATE.with(|g| g.get())
+}
 
 // ── Drag types ────────────────────────────────────────────────────────────────
 
@@ -90,7 +101,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        Self {
+        let state = Self {
             active_pane: RwSignal::new(ActivePane::Middle),
             left_items: RwSignal::new(vec![]),
             middle_items: RwSignal::new(vec![]),
@@ -122,7 +133,12 @@ impl AppState {
             is_rules_modal_open: RwSignal::new(false),
             is_create_transaction_modal_open: RwSignal::new(false),
             print_target: RwSignal::new(None),
-        }
+        };
+
+        // Save the state globally for IPC/async logging access.
+        GLOBAL_STATE.with(|g| g.set(Some(state)));
+
+        state
     }
 
     /// Checks if any modal is currently open to block header and main actions.

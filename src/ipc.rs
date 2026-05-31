@@ -6,6 +6,7 @@
 
 use wasm_bindgen::prelude::*;
 
+
 use hho_types::{
     AutoAssignRule, Institution, LayoutConfig, OpenCsvArgs, OpenResult, SaveAutoAssignRulesArgs,
     SaveLayoutArgs, SaveMappingArgs, SavePaneTransactionsArgs, SaveWindowSizeArgs, Transaction,
@@ -28,12 +29,46 @@ fn to_args<T: serde::Serialize>(args: &T) -> JsValue {
     serde_wasm_bindgen::to_value(args).unwrap_or(JsValue::NULL)
 }
 
+/// Stringifies a JsValue payload to a JSON string representation.
+fn stringify_js(val: &JsValue) -> String {
+    if val.is_null() || val.is_undefined() {
+        return "null".to_string();
+    }
+    match js_sys::JSON::stringify(val) {
+        Ok(js_str) => js_str.into(),
+        Err(_) => format!("{:?}", val),
+    }
+}
+
 /// Invoke a command with no arguments and deserialize its result.
 async fn call_unit<R: serde::de::DeserializeOwned>(cmd: &str) -> Result<R, String> {
-    let v = invoke_raw(cmd, JsValue::NULL)
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
+    let state = crate::state::get_global_state();
+    if let Some(s) = state {
+        s.log(format!("[IPC Request] {cmd} with no args"));
+    }
+    let res = invoke_raw(cmd, JsValue::NULL).await;
+    match res {
+        Ok(v) => {
+            let res_str = stringify_js(&v);
+            if let Some(s) = state {
+                s.log(format!("[IPC Response] {cmd} success: {res_str}"));
+            }
+            serde_wasm_bindgen::from_value(v).map_err(|e| {
+                let err_msg = e.to_string();
+                if let Some(s) = state {
+                    s.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
+                }
+                err_msg
+            })
+        }
+        Err(e) => {
+            let err_str = stringify_js(&e);
+            if let Some(s) = state {
+                s.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
+            }
+            Err(err_str)
+        }
+    }
 }
 
 /// Invoke a command with arguments and deserialize its result.
@@ -42,10 +77,35 @@ where
     A: serde::Serialize,
     R: serde::de::DeserializeOwned,
 {
-    let v = invoke_raw(cmd, to_args(args))
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    serde_wasm_bindgen::from_value(v).map_err(|e| e.to_string())
+    let state = crate::state::get_global_state();
+    let args_val = to_args(args);
+    let args_str = stringify_js(&args_val);
+    if let Some(s) = state {
+        s.log(format!("[IPC Request] {cmd} with args: {args_str}"));
+    }
+    let res = invoke_raw(cmd, args_val).await;
+    match res {
+        Ok(v) => {
+            let res_str = stringify_js(&v);
+            if let Some(s) = state {
+                s.log(format!("[IPC Response] {cmd} success: {res_str}"));
+            }
+            serde_wasm_bindgen::from_value(v).map_err(|e| {
+                let err_msg = e.to_string();
+                if let Some(s) = state {
+                    s.log(format!("[IPC Error] {cmd} deserialization failure: {err_msg}"));
+                }
+                err_msg
+            })
+        }
+        Err(e) => {
+            let err_str = stringify_js(&e);
+            if let Some(s) = state {
+                s.log(format!("[IPC Error] {cmd} backend error: {err_str}"));
+            }
+            Err(err_str)
+        }
+    }
 }
 
 // ── Command wrappers ──────────────────────────────────────────────────────────
@@ -82,19 +142,59 @@ pub async fn get_layout() -> Result<LayoutConfig, String> {
 
 /// Persist pane dimensions (best-effort; ignores failures).
 pub async fn save_layout(left_width: f32, right_width: f32, bottom_h: f32, debug_h: f32) {
+    let state = crate::state::get_global_state();
     let args = SaveLayoutArgs {
         left_width,
         right_width,
         bottom_h,
         debug_h,
     };
-    let _ = invoke_raw("save_layout", to_args(&args)).await;
+    let args_val = to_args(&args);
+    let args_str = stringify_js(&args_val);
+    if let Some(s) = state {
+        s.log(format!("[IPC Request] save_layout with args: {args_str}"));
+    }
+    let res = invoke_raw("save_layout", args_val).await;
+    match res {
+        Ok(v) => {
+            let res_str = stringify_js(&v);
+            if let Some(s) = state {
+                s.log(format!("[IPC Response] save_layout success: {res_str}"));
+            }
+        }
+        Err(e) => {
+            let err_str = stringify_js(&e);
+            if let Some(s) = state {
+                s.log(format!("[IPC Error] save_layout backend error: {err_str}"));
+            }
+        }
+    }
 }
 
 /// Persist window dimensions (best-effort; ignores failures).
 pub async fn save_window_size(width: f64, height: f64) {
+    let state = crate::state::get_global_state();
     let args = SaveWindowSizeArgs { width, height };
-    let _ = invoke_raw("save_window_size", to_args(&args)).await;
+    let args_val = to_args(&args);
+    let args_str = stringify_js(&args_val);
+    if let Some(s) = state {
+        s.log(format!("[IPC Request] save_window_size with args: {args_str}"));
+    }
+    let res = invoke_raw("save_window_size", args_val).await;
+    match res {
+        Ok(v) => {
+            let res_str = stringify_js(&v);
+            if let Some(s) = state {
+                s.log(format!("[IPC Response] save_window_size success: {res_str}"));
+            }
+        }
+        Err(e) => {
+            let err_str = stringify_js(&e);
+            if let Some(s) = state {
+                s.log(format!("[IPC Error] save_window_size backend error: {err_str}"));
+            }
+        }
+    }
 }
 
 /// Fetches the recent CSV file paths.
@@ -130,5 +230,23 @@ pub async fn save_pane_transactions(
 
 /// Closes the application cleanly.
 pub async fn exit_app() {
-    let _ = invoke_raw("exit_app", JsValue::NULL).await;
+    let state = crate::state::get_global_state();
+    if let Some(s) = state {
+        s.log("[IPC Request] exit_app with no args".to_string());
+    }
+    let res = invoke_raw("exit_app", JsValue::NULL).await;
+    match res {
+        Ok(v) => {
+            let res_str = stringify_js(&v);
+            if let Some(s) = state {
+                s.log(format!("[IPC Response] exit_app success: {res_str}"));
+            }
+        }
+        Err(e) => {
+            let err_str = stringify_js(&e);
+            if let Some(s) = state {
+                s.log(format!("[IPC Error] exit_app backend error: {err_str}"));
+            }
+        }
+    }
 }
