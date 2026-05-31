@@ -81,62 +81,84 @@ pub fn Pane(
                     let total_cents = crate::logic::calculate_total_cents(&items);
                     let main_header = format!("{}:  {}", title, hho_types::format_dollars(total_cents));
 
-                    let is_printable = pane_id == ActivePane::Left || pane_id == ActivePane::Right;
-
-                    let header_title_element = if is_printable {
-                        let print_target = state.print_target;
-                        let handle_print = move |e: leptos::ev::MouseEvent| {
-                            e.stop_propagation();
-                            print_target.set(Some(pane_id));
-                            if let Some(w) = web_sys::window() {
-                                // Schedules the browser print trigger.
-                                let cb = wasm_bindgen::closure::Closure::once_into_js(move || {
-                                    if let Some(w) = web_sys::window() {
-                                        let _ = w.print();
-                                        print_target.set(None);
-                                    }
-                                });
-                                let _ = w.request_animation_frame(cb.as_ref().unchecked_ref());
-                            }
-                        };
-
-                        let handle_save = move |e: leptos::ev::MouseEvent| {
-                            e.stop_propagation();
-                            let pane_title = match pane_id {
-                                ActivePane::Left => "Joint",
-                                ActivePane::Right => "Personal",
-                                _ => "",
+                    let header_title_element = match pane_id {
+                        ActivePane::Left | ActivePane::Right => {
+                            let print_target = state.print_target;
+                            let handle_print = move |e: leptos::ev::MouseEvent| {
+                                e.stop_propagation();
+                                print_target.set(Some(pane_id));
+                                if let Some(w) = web_sys::window() {
+                                    // Schedules the browser print trigger.
+                                    let cb = wasm_bindgen::closure::Closure::once_into_js(move || {
+                                        if let Some(w) = web_sys::window() {
+                                            let _ = w.print();
+                                            print_target.set(None);
+                                        }
+                                    });
+                                    let _ = w.request_animation_frame(cb.as_ref().unchecked_ref());
+                                }
                             };
-                            crate::components::header::save_pane(state, pane_id, pane_title);
-                        };
 
-                        view! {
-                            <div class="pane-header-top">
-                                <div class="pane-header-title">{main_header.clone()}</div>
-                                <div class="pane-header-actions">
-                                    <button class="pane-action-btn" on:click=handle_print title="Print transactions">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                                            <rect x="6" y="14" width="12" height="8"></rect>
-                                        </svg>
-                                        <span>"Print"</span>
-                                    </button>
-                                    <button class="pane-action-btn" on:click=handle_save title="Save transactions">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                                            <polyline points="7 3 7 8 15 8"></polyline>
-                                        </svg>
-                                        <span>"Save"</span>
-                                    </button>
+                            let handle_save = move |e: leptos::ev::MouseEvent| {
+                                e.stop_propagation();
+                                let pane_title = match pane_id {
+                                    ActivePane::Left => "Joint",
+                                    ActivePane::Right => "Personal",
+                                    _ => "",
+                                };
+                                crate::components::header::save_pane(state, pane_id, pane_title);
+                            };
+
+                            view! {
+                                <div class="pane-header-top">
+                                    <div class="pane-header-title">{main_header.clone()}</div>
+                                    <div class="pane-header-actions">
+                                        <button class="pane-action-btn" on:click=handle_print title="Print transactions">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                                                <rect x="6" y="14" width="12" height="8"></rect>
+                                            </svg>
+                                            <span>"Print"</span>
+                                        </button>
+                                        <button class="pane-action-btn" on:click=handle_save title="Save transactions">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                <polyline points="7 3 7 8 15 8"></polyline>
+                                            </svg>
+                                            <span>"Save"</span>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        }.into_any()
-                    } else {
-                        view! {
-                            <div class="pane-header-title">{main_header.clone()}</div>
-                        }.into_any()
+                            }.into_any()
+                        }
+                        ActivePane::Middle => {
+                            let handle_new = move |e: leptos::ev::MouseEvent| {
+                                e.stop_propagation();
+                                state.is_create_transaction_modal_open.set(true);
+                            };
+
+                            view! {
+                                <div class="pane-header-top">
+                                    <div class="pane-header-title">{main_header.clone()}</div>
+                                    <div class="pane-header-actions">
+                                        <button class="pane-action-btn" on:click=handle_new title="New transaction">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                            <span>"New"</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        }
+                        _ => {
+                            view! {
+                                <div class="pane-header-title">{main_header.clone()}</div>
+                            }.into_any()
+                        }
                     };
 
                     if pane_id == ActivePane::Bottom {

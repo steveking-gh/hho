@@ -96,13 +96,7 @@ pub fn Header() -> impl IntoView {
         state.is_rules_modal_open.set(true);
     };
 
-    // Opens the manual transaction creation modal.
-    let on_create_transaction = move |_| {
-        if state.any_modal_open() {
-            return;
-        }
-        state.is_create_transaction_modal_open.set(true);
-    };
+
 
 
 
@@ -180,10 +174,7 @@ pub fn Header() -> impl IntoView {
                     "Edit Rules"
                 </button>
 
-                <button class="header-btn" on:click=on_create_transaction>
-                    <span class="btn-icon header-icon-orange">"+"</span>
-                    "New Transaction"
-                </button>
+
 
             </div>
 
