@@ -399,4 +399,37 @@ mod tests {
         assert_eq!(updated[1].vendor, "NETFLIX PREMIUM");
         assert_eq!(updated[1].amount_cents, 2299);
     }
+
+    #[test]
+    fn test_apply_month_filter_ignored_pane_credit() {
+        let state = AppState::new();
+        state.selected_year.set(2026);
+        state.selected_month.set(5);
+        state.raw_transactions.set(vec![
+            Transaction {
+                id: None,
+                date: "2026-05-15".to_string(),
+                vendor: "PAYMENT RECEIVED".to_string(),
+                category: "Income".to_string(),
+                amount_cents: 5000,
+                direction: Direction::Credit,
+            },
+        ]);
+        state.auto_assign_rules.set(vec![
+            AutoAssignRule {
+                regex: "PAYMENT.*".to_string(),
+                pane: RulePane::Ignored,
+                category_override: None,
+            },
+        ]);
+
+        state.apply_month_filter();
+
+        // Verify the transaction was routed to the Bottom (Ignored) pane
+        assert_eq!(state.bottom_items.get().len(), 1);
+        assert_eq!(state.bottom_items.get()[0].txn.vendor, "PAYMENT RECEIVED");
+        assert_eq!(state.bottom_items.get()[0].txn.direction, Direction::Credit);
+        assert!(state.bottom_items.get()[0].auto_matched);
+        assert_eq!(state.bottom_sel.get(), Some(0));
+    }
 }
