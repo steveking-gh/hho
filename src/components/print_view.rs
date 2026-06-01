@@ -6,7 +6,6 @@
 // `@media print` block in styles.css hides the app chrome and shows only this
 // view, so the printed page / "Save as PDF" output contains just the table.
 
-use crate::logic::ActivePane;
 use crate::state::AppState;
 use leptos::prelude::*;
 
@@ -23,11 +22,7 @@ pub fn PrintView() -> impl IntoView {
                 return ().into_any();
             };
 
-            let title = match pane_id {
-                ActivePane::Left => "Joint",
-                ActivePane::Right => "Personal",
-                _ => "",
-            };
+            let title = pane_id.to_string();
 
             let items = state.items_for(pane_id).get();
             let year = state.selected_year.get();
