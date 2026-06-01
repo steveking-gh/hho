@@ -1,5 +1,5 @@
-use crate::state::AppState;
-use hho_types::{parse_amount_cents, Direction, Transaction};
+use crate::logic::Item;
+use hho_types::{parse_amount_cents, format_cents, Direction, Transaction};
 use leptos::prelude::*;
 
 fn parse_cents(s: &str) -> Result<i64, String> {
@@ -11,84 +11,115 @@ fn parse_cents(s: &str) -> Result<i64, String> {
 }
 
 #[component]
-pub fn CreateTransactionModal() -> impl IntoView {
-    let state = use_context::<AppState>().expect("AppState missing from context");
-
-    let year = state.selected_year.get_untracked();
-    let month = state.selected_month.get_untracked();
-    let default_date = format!("{}-{:02}-01", year, month);
+pub fn TransactionEditorModal<S, C>(
+    item: Item,
+    on_save: S,
+    on_cancel: C,
+) -> impl IntoView
+where
+    S: Fn(Transaction) + Send + Sync + Clone + 'static,
+    C: Fn() + Send + Sync + Clone + 'static,
+{
+    let default_date = item.txn.date.clone();
+    let default_vendor = item.txn.vendor.clone();
+    let default_category = item.txn.category.clone();
+    let default_amount = format_cents(item.txn.amount_cents);
+    let default_direction = item.txn.direction;
 
     let (date_input, set_date_input) = signal(default_date);
-    let (vendor_input, set_vendor_input) = signal("".to_string());
-    let (category_input, set_category_input) = signal("".to_string());
-    let (amount_input, set_amount_input) = signal("".to_string());
-    let (direction_input, set_direction_input) = signal(Direction::Debit);
+    let (vendor_input, set_vendor_input) = signal(default_vendor);
+    let (category_input, set_category_input) = signal(default_category);
+    let (amount_input, set_amount_input) = signal(default_amount);
+    let (direction_input, set_direction_input) = signal(default_direction);
 
-    let on_cancel_overlay = move |_| {
-        state.is_create_transaction_modal_open.set(false);
+    let on_cancel_overlay = {
+        let on_cancel = on_cancel.clone();
+        move |_| on_cancel()
     };
 
-    let on_cancel_btn = move |_| {
-        state.is_create_transaction_modal_open.set(false);
+    let on_cancel_btn = {
+        let on_cancel = on_cancel.clone();
+        move |_| on_cancel()
     };
 
-    let on_save_click = move |_| {
-        let date_val = date_input.get_untracked();
-        let vendor_val = vendor_input.get_untracked().trim().to_string();
-        let category_val = category_input.get_untracked().trim().to_string();
-        let amount_val = amount_input.get_untracked();
-        let direction_val = direction_input.get_untracked();
+    let on_save_click = {
+        let on_save = on_save.clone();
+        let item = item.clone();
+        move |_| {
+            let date_val = date_input.get_untracked();
+            let vendor_val = vendor_input.get_untracked().trim().to_string();
+            let category_val = category_input.get_untracked().trim().to_string();
+            let amount_val = amount_input.get_untracked();
+            let direction_val = direction_input.get_untracked();
 
-        if date_val.is_empty() || date_val.len() != 10 || vendor_val.is_empty() {
-            return;
+            if date_val.is_empty() || date_val.len() != 10 || vendor_val.is_empty() {
+                return;
+            }
+
+            let cents = match parse_cents(&amount_val) {
+                Ok(c) => c,
+                Err(_) => return,
+            };
+
+            let updated_txn = Transaction {
+                id: item.txn.id,
+                date: date_val.clone(),
+                vendor: vendor_val.clone(),
+                category: category_val.clone(),
+                amount_cents: cents,
+                direction: direction_val,
+            };
+
+            on_save(updated_txn);
         }
+    };
 
-        let cents = match parse_cents(&amount_val) {
-            Ok(c) => c,
-            Err(_) => return,
-        };
 
-        let new_txn = Transaction {
-            id: None,
-            date: date_val.clone(),
-            vendor: vendor_val.clone(),
-            category: category_val.clone(),
-            amount_cents: cents,
-            direction: direction_val,
-        };
+    let on_keydown = {
+        let on_save = on_save.clone();
+        let item = item.clone();
+        move |ev: web_sys::KeyboardEvent| {
+            if ev.key() == "Enter" {
+                ev.prevent_default();
+                ev.stop_propagation();
+                let date_val = date_input.get_untracked();
+                let vendor_val = vendor_input.get_untracked().trim().to_string();
+                let category_val = category_input.get_untracked().trim().to_string();
+                let amount_val = amount_input.get_untracked();
+                let direction_val = direction_input.get_untracked();
 
-        state.log(format!(
-            "[CreateTransaction] adding manual transaction: date={} vendor={} category={} amount_cents={} direction={:?}",
-            new_txn.date, new_txn.vendor, new_txn.category, new_txn.amount_cents, new_txn.direction
-        ));
+                if date_val.is_empty() || date_val.len() != 10 || vendor_val.is_empty() {
+                    return;
+                }
 
-        state.raw_transactions.update(|txns| {
-            let max_id = txns.iter().map(|t| t.id.unwrap_or(0)).max().unwrap_or(0);
-            let mut txn_to_add = new_txn.clone();
-            txn_to_add.id = Some(max_id + 1);
-            txns.push(txn_to_add);
-        });
+                let cents = match parse_cents(&amount_val) {
+                    Ok(c) => c,
+                    Err(_) => return,
+                };
 
-        let txn_year: i32 = date_val[0..4].parse().unwrap_or(year);
-        let txn_month: i32 = date_val[5..7].parse().unwrap_or(month);
-        if txn_year != year || txn_month != month {
-            state.selected_year.set(txn_year);
-            state.selected_month.set(txn_month);
+                let updated_txn = Transaction {
+                    id: item.txn.id,
+                    date: date_val,
+                    vendor: vendor_val,
+                    category: category_val,
+                    amount_cents: cents,
+                    direction: direction_val,
+                };
+
+                on_save(updated_txn);
+            }
         }
-
-        state.apply_month_filter();
-        state.is_create_transaction_modal_open.set(false);
     };
 
     view! {
         <div class="modal-overlay" on:click=on_cancel_overlay>
-            <div class="modal-container assign-modal" on:click=|ev| ev.stop_propagation()>
-                <h2>"Create New Transaction"</h2>
+            <div class="modal-container assign-modal" on:click=|ev| ev.stop_propagation() on:keydown=on_keydown>
+                <h2>"Edit Transaction"</h2>
 
                 <div class="modal-field">
-                    <label for="manual-date">"Date"</label>
+                    <label for="edit-date">"Date"</label>
                     <input
-                        id="manual-date"
+                        id="edit-date"
                         type="date"
                         prop:value=date_input
                         on:input=move |ev| set_date_input.set(event_target_value(&ev))
@@ -96,9 +127,9 @@ pub fn CreateTransactionModal() -> impl IntoView {
                 </div>
 
                 <div class="modal-field">
-                    <label for="manual-vendor">"Vendor Name"</label>
+                    <label for="edit-vendor">"Vendor Name"</label>
                     <input
-                        id="manual-vendor"
+                        id="edit-vendor"
                         type="text"
                         prop:value=vendor_input
                         on:input=move |ev| set_vendor_input.set(event_target_value(&ev))
@@ -108,9 +139,9 @@ pub fn CreateTransactionModal() -> impl IntoView {
                 </div>
 
                 <div class="modal-field">
-                    <label for="manual-category">"Category"</label>
+                    <label for="edit-category">"Category"</label>
                     <input
-                        id="manual-category"
+                        id="edit-category"
                         type="text"
                         prop:value=category_input
                         on:input=move |ev| set_category_input.set(event_target_value(&ev))
@@ -119,9 +150,9 @@ pub fn CreateTransactionModal() -> impl IntoView {
                 </div>
 
                 <div class="modal-field">
-                    <label for="manual-amount">"Amount"</label>
+                    <label for="edit-amount">"Amount"</label>
                     <input
-                        id="manual-amount"
+                        id="edit-amount"
                         type="text"
                         prop:value=amount_input
                         on:input=move |ev| set_amount_input.set(event_target_value(&ev))

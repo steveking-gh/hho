@@ -18,6 +18,7 @@ use crate::components::{
     resize_handle::{ResizeDir, ResizeHandle},
     rule_editor_modal::RuleEditorModal,
     rules_modal::RulesModal,
+    transaction_editor_modal::TransactionEditorModal,
 };
 use crate::dto::{OpenResult, PendingMapping};
 use crate::ipc;
@@ -341,10 +342,17 @@ pub fn App() -> impl IntoView {
                     if idx < items.len() {
                         ev.prevent_default();
                         let selected_item = items[idx].clone();
-                        state.assign_modal_item.set(Some(selected_item));
-                        state.log(format!(
-                            "[KeyDown] Enter  →  opening auto-assign modal for row {idx}"
-                        ));
+                        if shift {
+                            state.editing_transaction_item.set(Some(selected_item));
+                            state.log(format!(
+                                "[KeyDown] Shift+Enter  →  opening edit transaction modal for row {idx}"
+                            ));
+                        } else {
+                            state.assign_modal_item.set(Some(selected_item));
+                            state.log(format!(
+                                "[KeyDown] Enter  →  opening auto-assign modal for row {idx}"
+                            ));
+                        }
                         return;
                     }
                 }
@@ -534,6 +542,42 @@ pub fn App() -> impl IntoView {
                 }
             })}
 
+            // Renders the transaction editing modal when editing an item.
+            {move || state.editing_transaction_item.get().map(|item| {
+                let tx_id = item.txn.id;
+                let on_save = move |updated_txn: hho_types::Transaction| {
+                    let year = state.selected_year.get_untracked();
+                    let month = state.selected_month.get_untracked();
+                    state.raw_transactions.update(|txns| {
+                        if let Some(target) = txns.iter_mut().find(|t| t.id == tx_id) {
+                            let mut next_txn = updated_txn.clone();
+                            next_txn.id = tx_id;
+                            *target = next_txn;
+                        }
+                    });
+
+                    let txn_year: i32 = updated_txn.date[0..4].parse().unwrap_or(year);
+                    let txn_month: i32 = updated_txn.date[5..7].parse().unwrap_or(month);
+                    if txn_year != year || txn_month != month {
+                        state.selected_year.set(txn_year);
+                        state.selected_month.set(txn_month);
+                    }
+
+                    state.apply_month_filter();
+                    state.editing_transaction_item.set(None);
+                };
+                let on_cancel = move || {
+                    state.editing_transaction_item.set(None);
+                };
+                view! {
+                    <TransactionEditorModal
+                        item=item.clone()
+                        on_save=on_save
+                        on_cancel=on_cancel
+                    />
+                }
+            })}
+
             // Rules manager modal: rendered only while open.
             {move || state.is_rules_modal_open.get().then(|| view! { <RulesModal /> })}
 
@@ -609,6 +653,7 @@ mod tests {
             label: "".to_string(),
             auto_matched: true,
             txn: crate::dto::Transaction {
+                id: None,
                 date: "2026-05-15".to_string(),
                 vendor: "STARBUCKS COFFEE".to_string(),
                 category: "Uncategorized".to_string(),

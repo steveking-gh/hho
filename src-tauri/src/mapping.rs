@@ -116,6 +116,7 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         None => String::new(),
     };
     Some(Transaction {
+        id: None,
         date,
         vendor,
         category,

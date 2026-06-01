@@ -262,6 +262,7 @@ pub fn classify_transactions(
         let category = overridden_category.unwrap_or_else(|| t.category.clone());
 
         let txn = hho_types::Transaction {
+            id: t.id,
             date: t.date.clone(),
             vendor: t.vendor.clone(),
             category,
@@ -301,6 +302,7 @@ mod tests {
                 label: l.to_string(),
                 auto_matched: false,
                 txn: hho_types::Transaction {
+                    id: None,
                     date: "".to_string(),
                     vendor: "".to_string(),
                     category: "".to_string(),
@@ -485,6 +487,7 @@ mod tests {
                 label: "a".to_string(),
                 auto_matched: false,
                 txn: hho_types::Transaction {
+                    id: None,
                     date: "".to_string(),
                     vendor: "".to_string(),
                     category: "".to_string(),
@@ -497,6 +500,7 @@ mod tests {
                 label: "b".to_string(),
                 auto_matched: false,
                 txn: hho_types::Transaction {
+                    id: None,
                     date: "".to_string(),
                     vendor: "".to_string(),
                     category: "".to_string(),
@@ -515,6 +519,7 @@ mod tests {
             label: "2026-05-18 │ a".into(),
             auto_matched: false,
             txn: hho_types::Transaction {
+                id: None,
                 date: "2026-05-18".into(),
                 vendor: "".to_string(),
                 category: "".to_string(),
@@ -527,6 +532,7 @@ mod tests {
             label: "2026-05-20 │ b".into(),
             auto_matched: false,
             txn: hho_types::Transaction {
+                id: None,
                 date: "2026-05-20".into(),
                 vendor: "".to_string(),
                 category: "".to_string(),
@@ -562,6 +568,7 @@ mod tests {
 
         let txns = vec![
             Transaction {
+                id: None,
                 date: "2026-05-15".to_string(),
                 vendor: "STARBUCKS COFFEE".to_string(),
                 category: "Uncategorized".to_string(),
@@ -569,6 +576,7 @@ mod tests {
                 direction: Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-16".to_string(),
                 vendor: "NETFLIX".to_string(),
                 category: "Entertainment".to_string(),
@@ -576,6 +584,7 @@ mod tests {
                 direction: Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-17".to_string(),
                 vendor: "SAFEWAY".to_string(),
                 category: "Groceries".to_string(),
@@ -583,6 +592,7 @@ mod tests {
                 direction: Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-18".to_string(),
                 vendor: "SPAMMY_EMAIL".to_string(),
                 category: "Misc".to_string(),
@@ -667,6 +677,7 @@ mod tests {
 
         // Enforce that the first matching rule takes precedence.
         let txns = vec![Transaction {
+            id: None,
             date: "2026-05-15".to_string(),
             vendor: "STARBUCKS COFFEE".to_string(),
             category: "Uncategorized".to_string(),

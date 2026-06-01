@@ -741,6 +741,7 @@ mod tests {
         let path = dir.join("test_write_pane_csv.csv");
         let transactions = vec![
             Transaction {
+                id: None,
                 date: "2026-05-18".to_string(),
                 vendor: "BUDGET RENT A CAR".to_string(),
                 category: "Travel".to_string(),
@@ -748,6 +749,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-19".to_string(),
                 vendor: "STARBUCKS".to_string(),
                 category: "".to_string(),
@@ -755,6 +757,7 @@ mod tests {
                 direction: hho_types::Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-20".to_string(),
                 vendor: "CREDIT REFUND".to_string(),
                 category: "Refund, Special".to_string(),

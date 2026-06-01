@@ -14,9 +14,10 @@ use serde::{Deserialize, Serialize};
 // ── Domain types ──────────────────────────────────────────────────────────────
 
 /// Direction of money flow for a transaction.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
+    #[default]
     Debit,  // money out
     Credit, // money in
 }
@@ -57,8 +58,10 @@ pub struct Institution {
 }
 
 /// A normalized transaction produced by applying an Institution to a CSV row.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct Transaction {
+    #[serde(default)]
+    pub id: Option<u32>, // session-only ID, generated when loading/creating
     pub date: String, // canonical "YYYY-MM-DD"
     pub vendor: String,
     pub category: String,

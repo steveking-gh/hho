@@ -189,6 +189,9 @@ pub fn Pane(
                         .map(|(i, item)| {
                             let is_selected = move || sel_sig.get() == Some(i);
                             let label = item.label.clone();
+                            let label_click = label.clone();
+                            let item_clone1 = item.clone();
+                            let item_clone2 = item.clone();
                             view! {
                                 <div
                                     class="row-item"
@@ -202,13 +205,48 @@ pub fn Pane(
                                         state.active_pane.set(pane_id);
                                         state.sel_for(pane_id).set(Some(i));
                                         state.log(format!(
-                                            "[Click] row {i} \"{label}\" in \"{}\"  \
+                                            "[Click] row {i} \"{label_click}\" in \"{}\"  \
                                              (was pane=\"{}\" sel={:?}) → sel={}",
                                              pane_id, was_pane, was_sel, i
                                         ));
                                     }
                                 >
-                                    {item.label}
+                                    <span class="row-label">{label}</span>
+                                    {move || (pane_id == ActivePane::Middle).then(|| {
+                                        let item_edit = item_clone1.clone();
+                                        let item_rule = item_clone2.clone();
+                                        view! {
+                                            <div class="row-actions">
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn edit-btn"
+                                                    title="Edit transaction (Shift+Enter)"
+                                                    on:click=move |e| {
+                                                        e.stop_propagation();
+                                                        state.editing_transaction_item.set(Some(item_edit.clone()));
+                                                    }
+                                                >
+                                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path>
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn rule-btn"
+                                                    title="Create auto-assign rule (Enter)"
+                                                    on:click=move |e| {
+                                                        e.stop_propagation();
+                                                        state.assign_modal_item.set(Some(item_rule.clone()));
+                                                    }
+                                                >
+                                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        }
+                                    })}
                                 </div>
                             }
                         })

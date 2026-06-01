@@ -89,6 +89,8 @@ pub struct AppState {
     pub print_target: RwSignal<Option<ActivePane>>,
     // State signal representing the visibility of the debug log panel.
     pub show_debug_log: RwSignal<bool>,
+    // State signal controlling the transaction editing modal.
+    pub editing_transaction_item: RwSignal<Option<Item>>,
 }
 
 impl AppState {
@@ -127,6 +129,7 @@ impl AppState {
             is_create_transaction_modal_open: RwSignal::new(false),
             print_target: RwSignal::new(None),
             show_debug_log: RwSignal::new(false),
+            editing_transaction_item: RwSignal::new(None),
         }
     }
 
@@ -134,6 +137,7 @@ impl AppState {
     pub fn any_modal_open(self) -> bool {
         self.pending_mapping.get_untracked().is_some()
             || self.assign_modal_item.get_untracked().is_some()
+            || self.editing_transaction_item.get_untracked().is_some()
             || self.is_month_modal_open.get_untracked()
             || self.is_rules_modal_open.get_untracked()
             || self.is_create_transaction_modal_open.get_untracked()
@@ -141,7 +145,10 @@ impl AppState {
 
     /// Replace the Unassigned pane with parsed transactions, select the
     /// first row, and activate the pane.
-    pub fn populate_transactions(self, institution: &str, txns: Vec<Transaction>) {
+    pub fn populate_transactions(self, institution: &str, mut txns: Vec<Transaction>) {
+        for (i, t) in txns.iter_mut().enumerate() {
+            t.id = Some(i as u32);
+        }
         self.raw_transactions.set(txns);
         self.current_institution.set(Some(institution.to_string()));
         let state = self;
@@ -300,6 +307,7 @@ mod tests {
         state.selected_month.set(5);
         state.raw_transactions.set(vec![
             Transaction {
+                id: None,
                 date: "2026-05-15".to_string(),
                 vendor: "STARBUCKS COFFEE".to_string(),
                 category: "Uncategorized".to_string(),
@@ -307,6 +315,7 @@ mod tests {
                 direction: Direction::Debit,
             },
             Transaction {
+                id: None,
                 date: "2026-05-16".to_string(),
                 vendor: "NETFLIX".to_string(),
                 category: "Entertainment".to_string(),
@@ -343,5 +352,51 @@ mod tests {
         assert_eq!(right[0].txn.category, "Entertainment");
         assert!(right[0].label.contains("Entertainment"));
         assert!(right[0].auto_matched);
+    }
+
+    #[test]
+    fn test_transaction_id_and_editing_flow() {
+        let state = AppState::new();
+
+        // Populate transactions and verify sequential IDs are assigned.
+        let mut txns = vec![
+            Transaction {
+                id: None,
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS".to_string(),
+                category: "Coffee".to_string(),
+                amount_cents: 450,
+                direction: Direction::Debit,
+            },
+            Transaction {
+                id: None,
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX".to_string(),
+                category: "Streaming".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+            },
+        ];
+        for (i, t) in txns.iter_mut().enumerate() {
+            t.id = Some(i as u32);
+        }
+        state.raw_transactions.set(txns);
+
+        let populated = state.raw_transactions.get();
+        assert_eq!(populated[0].id, Some(0));
+        assert_eq!(populated[1].id, Some(1));
+
+        // Locate a transaction by ID and update it.
+        state.raw_transactions.update(|raw| {
+            if let Some(t) = raw.iter_mut().find(|t| t.id == Some(1)) {
+                t.vendor = "NETFLIX PREMIUM".to_string();
+                t.amount_cents = 2299;
+            }
+        });
+
+        // Verify the edits were correctly saved in AppState.
+        let updated = state.raw_transactions.get();
+        assert_eq!(updated[1].vendor, "NETFLIX PREMIUM");
+        assert_eq!(updated[1].amount_cents, 2299);
     }
 }
