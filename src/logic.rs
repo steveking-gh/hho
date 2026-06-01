@@ -660,4 +660,39 @@ mod tests {
         assert_eq!(ActivePane::Right.to_string(), hho_types::RulePane::Personal.display_title());
         assert_eq!(ActivePane::Bottom.to_string(), hho_types::RulePane::Ignored.display_title());
     }
+
+    #[test]
+    fn test_classify_transactions_first_match_wins() {
+        use hho_types::{AutoAssignRule, Direction, RulePane, Transaction};
+
+        // Enforce that the first matching rule takes precedence.
+        let txns = vec![Transaction {
+            date: "2026-05-15".to_string(),
+            vendor: "STARBUCKS COFFEE".to_string(),
+            category: "Uncategorized".to_string(),
+            amount_cents: 450,
+            direction: Direction::Debit,
+        }];
+
+        let rules = vec![
+            AutoAssignRule {
+                regex: "STARBUCKS.*".to_string(),
+                pane: RulePane::Joint,
+                category_override: Some("Coffee".to_string()),
+            },
+            AutoAssignRule {
+                regex: ".*COFFEE".to_string(),
+                pane: RulePane::Personal,
+                category_override: Some("Tea".to_string()),
+            },
+        ];
+
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].txn.category, "Coffee");
+        assert!(right.is_empty());
+        assert!(middle.is_empty());
+        assert!(bottom.is_empty());
+    }
 }
