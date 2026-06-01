@@ -31,6 +31,14 @@ where
     let (target_pane, set_target_pane) = signal(initial_pane);
     let (category_override_input, set_category_override_input) = signal(initial_category_override);
 
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+
+    Effect::new(move |_| {
+        if let Some(input) = input_ref.get() {
+            let _ = input.focus();
+        }
+    });
+
     let is_override_active = Memo::new(move |_| !category_override_input.get().trim().is_empty());
 
     // Tracks regex match result and compilation errors reactively.
@@ -127,12 +135,14 @@ where
                 <div class="modal-field">
                     <label for="regex-input-editor">"Match Transaction (Regex)"</label>
                     <input
+                        node_ref=input_ref
                         id="regex-input-editor"
                         type="text"
                         prop:value=regex_input
                         on:input=move |ev| set_regex_input.set(event_target_value(&ev))
                         placeholder="Enter regex or substring"
                         autofocus
+                        autocomplete="off"
                     />
                     {move || {
                         let (_, error) = match_memo.get();
@@ -180,6 +190,7 @@ where
                         prop:value=category_override_input
                         on:input=move |ev| set_category_override_input.set(event_target_value(&ev))
                         placeholder="Enter category override"
+                        autocomplete="off"
                     />
                 </div>
 

@@ -92,6 +92,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
                         type="date"
                         prop:value=date_input
                         on:input=move |ev| set_date_input.set(event_target_value(&ev))
+                        autocomplete="off"
                     />
                 </div>
 
@@ -104,6 +105,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
                         on:input=move |ev| set_vendor_input.set(event_target_value(&ev))
                         placeholder="Enter vendor name"
                         autofocus
+                        autocomplete="off"
                     />
                 </div>
 
@@ -115,6 +117,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
                         prop:value=category_input
                         on:input=move |ev| set_category_input.set(event_target_value(&ev))
                         placeholder="Enter category (optional)"
+                        autocomplete="off"
                     />
                 </div>
 
@@ -126,6 +129,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
                         prop:value=amount_input
                         on:input=move |ev| set_amount_input.set(event_target_value(&ev))
                         placeholder="0.00"
+                        autocomplete="off"
                     />
                     {move || {
                         let val = amount_input.get();

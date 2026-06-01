@@ -123,6 +123,7 @@ where
                         type="date"
                         prop:value=date_input
                         on:input=move |ev| set_date_input.set(event_target_value(&ev))
+                        autocomplete="off"
                     />
                 </div>
 
@@ -135,6 +136,7 @@ where
                         on:input=move |ev| set_vendor_input.set(event_target_value(&ev))
                         placeholder="Enter vendor name"
                         autofocus
+                        autocomplete="off"
                     />
                 </div>
 
@@ -146,6 +148,7 @@ where
                         prop:value=category_input
                         on:input=move |ev| set_category_input.set(event_target_value(&ev))
                         placeholder="Enter category (optional)"
+                        autocomplete="off"
                     />
                 </div>
 
@@ -157,6 +160,7 @@ where
                         prop:value=amount_input
                         on:input=move |ev| set_amount_input.set(event_target_value(&ev))
                         placeholder="0.00"
+                        autocomplete="off"
                     />
                     {move || {
                         let val = amount_input.get();
