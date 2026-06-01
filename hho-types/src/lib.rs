@@ -310,6 +310,17 @@ pub enum RulePane {
     Ignored,
 }
 
+impl RulePane {
+    /// Returns the capitalized display title for the pane.
+    pub fn display_title(&self) -> &'static str {
+        match self {
+            Self::Joint => "Joint",
+            Self::Personal => "Personal",
+            Self::Ignored => "Ignored",
+        }
+    }
+}
+
 impl std::fmt::Display for RulePane {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -145,27 +145,19 @@ where
                 <div class="modal-field">
                     <label>"Destination Pane"</label>
                     <div class="pane-selector-row">
-                        <button
-                            type="button"
-                            class=move || if target_pane.get() == RulePane::Joint { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set(RulePane::Joint)
-                        >
-                            "Joint"
-                        </button>
-                        <button
-                            type="button"
-                            class=move || if target_pane.get() == RulePane::Personal { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set(RulePane::Personal)
-                        >
-                            "Personal"
-                        </button>
-                        <button
-                            type="button"
-                            class=move || if target_pane.get() == RulePane::Ignored { "pane-select-btn active" } else { "pane-select-btn" }
-                            on:click=move |_| set_target_pane.set(RulePane::Ignored)
-                        >
-                            "Ignored"
-                        </button>
+                        {
+                            [RulePane::Joint, RulePane::Personal, RulePane::Ignored].into_iter().map(|p| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class=move || if target_pane.get() == p { "pane-select-btn active" } else { "pane-select-btn" }
+                                        on:click=move |_| set_target_pane.set(p)
+                                    >
+                                        {p.display_title()}
+                                    </button>
+                                }
+                            }).collect_view()
+                        }
                     </div>
                 </div>
 

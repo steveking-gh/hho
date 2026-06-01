@@ -652,4 +652,12 @@ mod tests {
         assert_eq!(MONTHS_ABBR[0], (1, "Jan"));
         assert_eq!(MONTHS_ABBR[11], (12, "Dec"));
     }
+
+    #[test]
+    fn test_pane_title_alignment() {
+        // Enforce that display titles for equivalent active and rule panes match.
+        assert_eq!(ActivePane::Left.to_string(), hho_types::RulePane::Joint.display_title());
+        assert_eq!(ActivePane::Right.to_string(), hho_types::RulePane::Personal.display_title());
+        assert_eq!(ActivePane::Bottom.to_string(), hho_types::RulePane::Ignored.display_title());
+    }
 }

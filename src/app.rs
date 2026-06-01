@@ -489,14 +489,14 @@ pub fn App() -> impl IntoView {
             <Header />
             <div class="main-area">
                 <div class="top-section">
-                    <Pane title="Joint"         pane_id=ActivePane::Left />
+                    <Pane pane_id=ActivePane::Left />
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::LeftHandle />
-                    <Pane title="Unassigned" pane_id=ActivePane::Middle />
+                    <Pane pane_id=ActivePane::Middle />
                     <ResizeHandle dir=ResizeDir::Horizontal target=DragTarget::RightHandle />
-                    <Pane title="Personal"          pane_id=ActivePane::Right />
+                    <Pane pane_id=ActivePane::Right />
                 </div>
                 <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::TopHandle />
-                <Pane title="Ignored" pane_id=ActivePane::Bottom is_bottom=true />
+                <Pane pane_id=ActivePane::Bottom is_bottom=true />
                 {move || state.show_debug_log.get().then(|| view! {
                     <ResizeHandle dir=ResizeDir::Vertical target=DragTarget::BottomHandle />
                     <DebugLog />

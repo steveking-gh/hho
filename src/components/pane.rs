@@ -9,8 +9,6 @@ use wasm_bindgen::JsCast;
 
 #[component]
 pub fn Pane(
-    /// Title shown in the pane header.
-    title: &'static str,
     /// Which logical pane this instance represents.
     pane_id: ActivePane,
     /// Apply bottom-pane CSS variant (top border colour comes from CSS class).
@@ -79,7 +77,7 @@ pub fn Pane(
                 {move || {
                     let items = items_sig.get();
                     let total_cents = crate::logic::calculate_total_cents(&items);
-                    let main_header = format!("{}:  {}", title, hho_types::format_dollars(total_cents));
+                    let main_header = format!("{}:  {}", pane_id, hho_types::format_dollars(total_cents));
 
                     let header_title_element = match pane_id {
                         ActivePane::Left | ActivePane::Right => {
@@ -104,12 +102,7 @@ pub fn Pane(
 
                             let handle_save = move |e: leptos::ev::MouseEvent| {
                                 e.stop_propagation();
-                                let pane_title = match pane_id {
-                                    ActivePane::Left => "Joint",
-                                    ActivePane::Right => "Personal",
-                                    _ => "",
-                                };
-                                crate::components::header::save_pane(state, pane_id, pane_title);
+                                crate::components::header::save_pane(state, pane_id, &pane_id.to_string());
                             };
 
                             view! {

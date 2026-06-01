@@ -3,7 +3,7 @@
 
 use crate::components::rule_editor_modal::RuleEditorModal;
 use crate::state::AppState;
-use hho_types::{AutoAssignRule, RulePane};
+use hho_types::AutoAssignRule;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -157,11 +157,7 @@ pub fn RulesModal() -> impl IntoView {
                                         editing_rule_index.set(Some(i));
                                     };
 
-                                    let display_pane = match rule_clone.pane {
-                                         RulePane::Joint => "Joint",
-                                         RulePane::Personal => "Personal",
-                                         RulePane::Ignored => "Ignore",
-                                     }.to_string();
+                                    let display_pane = rule_clone.pane.display_title();
 
                                     view! {
                                         <div
