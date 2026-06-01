@@ -56,6 +56,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
             category: category_val.clone(),
             amount_cents: cents,
             direction: direction_val,
+            manual_pane: None,
         };
 
         state.log(format!(

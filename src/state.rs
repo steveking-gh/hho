@@ -223,6 +223,23 @@ impl AppState {
                 // Clear the auto-matched flag upon manual movement.
                 from_items[idx].auto_matched = false;
                 let moved_label = from_items[idx].label.clone();
+                let txn_id = from_items[idx].txn.id;
+
+                let rule_pane = match to {
+                    ActivePane::Left => hho_types::RulePane::Joint,
+                    ActivePane::Right => hho_types::RulePane::Personal,
+                    ActivePane::Bottom => hho_types::RulePane::Ignored,
+                    ActivePane::Middle => hho_types::RulePane::Unassigned,
+                };
+                from_items[idx].txn.manual_pane = Some(rule_pane);
+
+                if let Some(tid) = txn_id {
+                    self.raw_transactions.update(|raw| {
+                        if let Some(t) = raw.iter_mut().find(|t| t.id == Some(tid)) {
+                            t.manual_pane = Some(rule_pane);
+                        }
+                    });
+                }
 
                 // Tracks the ID of the selected item in target pane to restore it after sorting.
                 let selected_id_in_to =
@@ -310,9 +327,10 @@ mod tests {
                 id: None,
                 date: "2026-05-15".to_string(),
                 vendor: "STARBUCKS COFFEE".to_string(),
-                category: "Uncategorized".to_string(),
+                category: "Coffee & Tea".to_string(),
                 amount_cents: 450,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -321,6 +339,7 @@ mod tests {
                 category: "Entertainment".to_string(),
                 amount_cents: 1599,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
         ]);
         state.auto_assign_rules.set(vec![
@@ -367,6 +386,7 @@ mod tests {
                 category: "Coffee".to_string(),
                 amount_cents: 450,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -375,6 +395,7 @@ mod tests {
                 category: "Streaming".to_string(),
                 amount_cents: 1599,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
         ];
         for (i, t) in txns.iter_mut().enumerate() {
@@ -413,6 +434,7 @@ mod tests {
                 category: "Income".to_string(),
                 amount_cents: 5000,
                 direction: Direction::Credit,
+                manual_pane: None,
             },
         ]);
         state.auto_assign_rules.set(vec![
@@ -431,5 +453,61 @@ mod tests {
         assert_eq!(state.bottom_items.get()[0].txn.direction, Direction::Credit);
         assert!(state.bottom_items.get()[0].auto_matched);
         assert_eq!(state.bottom_sel.get(), Some(0));
+    }
+
+    #[test]
+    fn test_apply_month_filter_preserves_manual_assignments() {
+        let state = AppState::new();
+        state.selected_year.set(2026);
+        state.selected_month.set(5);
+        state.raw_transactions.set(vec![
+            Transaction {
+                id: Some(1),
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS".to_string(),
+                category: "Coffee".to_string(),
+                amount_cents: 450,
+                direction: Direction::Debit,
+                manual_pane: Some(RulePane::Personal), // manually moved to Personal
+            },
+            Transaction {
+                id: Some(2),
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX".to_string(),
+                category: "Streaming".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+                manual_pane: None, // routes normally by rules
+            },
+        ]);
+        state.auto_assign_rules.set(vec![
+            AutoAssignRule {
+                regex: "STARBUCKS".to_string(),
+                pane: RulePane::Joint, // Rule would route Starbucks to Joint
+                category_override: None,
+            },
+            AutoAssignRule {
+                regex: "NETFLIX".to_string(),
+                pane: RulePane::Joint, // Rule routes Netflix to Joint
+                category_override: None,
+            },
+        ]);
+
+        state.apply_month_filter();
+
+        // Starbucks should be in the Personal (right) pane because of the manual override
+        let right_items = state.right_items.get();
+        assert_eq!(right_items.len(), 1);
+        assert_eq!(right_items[0].txn.vendor, "STARBUCKS");
+        assert!(!right_items[0].auto_matched); // Manual movement is not auto-matched
+
+        // Netflix should be in the Joint (left) pane because it has no override and matches rules
+        let left_items = state.left_items.get();
+        assert_eq!(left_items.len(), 1);
+        assert_eq!(left_items[0].txn.vendor, "NETFLIX");
+        assert!(left_items[0].auto_matched);
+
+        // Neither Starbucks nor Netflix should be in the Middle (Unassigned) pane
+        assert_eq!(state.middle_items.get().len(), 0);
     }
 }

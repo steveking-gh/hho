@@ -122,6 +122,7 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         category,
         amount_cents,
         direction,
+        manual_pane: None,
     })
 }
 

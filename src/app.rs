@@ -659,6 +659,7 @@ mod tests {
                 category: "Uncategorized".to_string(),
                 amount_cents: 100,
                 direction: crate::dto::Direction::Debit,
+                manual_pane: None,
             },
         };
 

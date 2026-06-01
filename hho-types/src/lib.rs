@@ -67,6 +67,8 @@ pub struct Transaction {
     pub category: String,
     pub amount_cents: i64, // magnitude, always >= 0
     pub direction: Direction,
+    #[serde(skip)]
+    pub manual_pane: Option<RulePane>,
 }
 
 /// Identifies which amount scheme parsing strategy applies.
@@ -311,6 +313,7 @@ pub enum RulePane {
     Joint,
     Personal,
     Ignored,
+    Unassigned,
 }
 
 impl RulePane {
@@ -320,6 +323,7 @@ impl RulePane {
             Self::Joint => "Joint",
             Self::Personal => "Personal",
             Self::Ignored => "Ignored",
+            Self::Unassigned => "Unassigned",
         }
     }
 }
@@ -330,6 +334,7 @@ impl std::fmt::Display for RulePane {
             Self::Joint => write!(f, "joint"),
             Self::Personal => write!(f, "personal"),
             Self::Ignored => write!(f, "ignored"),
+            Self::Unassigned => write!(f, "unassigned"),
         }
     }
 }

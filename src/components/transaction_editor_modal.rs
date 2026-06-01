@@ -69,6 +69,7 @@ where
                 category: category_val.clone(),
                 amount_cents: cents,
                 direction: direction_val,
+                manual_pane: item.txn.manual_pane,
             };
 
             on_save(updated_txn);
@@ -105,6 +106,7 @@ where
                     category: category_val,
                     amount_cents: cents,
                     direction: direction_val,
+                    manual_pane: item.txn.manual_pane,
                 };
 
                 on_save(updated_txn);

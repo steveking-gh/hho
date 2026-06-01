@@ -251,11 +251,18 @@ pub fn classify_transactions(
     for t in txns {
         let mut matched_pane = None;
         let mut overridden_category = None;
-        for (re, pane, cat_override) in &compiled_rules {
-            if re.is_match(&t.vendor) {
-                matched_pane = Some(*pane);
-                overridden_category = cat_override.clone();
-                break;
+        let mut is_manual = false;
+
+        if let Some(pane) = t.manual_pane {
+            matched_pane = Some(pane);
+            is_manual = true;
+        } else {
+            for (re, pane, cat_override) in &compiled_rules {
+                if re.is_match(&t.vendor) {
+                    matched_pane = Some(*pane);
+                    overridden_category = cat_override.clone();
+                    break;
+                }
             }
         }
 
@@ -268,11 +275,12 @@ pub fn classify_transactions(
             category,
             amount_cents: t.amount_cents,
             direction: t.direction,
+            manual_pane: t.manual_pane,
         };
         let item = Item {
             id: next_item_id(),
             label: format_txn(&txn),
-            auto_matched: matched_pane.is_some(),
+            auto_matched: matched_pane.is_some() && !is_manual,
             txn,
         };
 
@@ -280,7 +288,7 @@ pub fn classify_transactions(
             Some(hho_types::RulePane::Joint) => left.push(item),
             Some(hho_types::RulePane::Personal) => right.push(item),
             Some(hho_types::RulePane::Ignored) => bottom.push(item),
-            None => middle.push(item),
+            Some(hho_types::RulePane::Unassigned) | None => middle.push(item),
         }
     }
 
@@ -308,6 +316,7 @@ mod tests {
                     category: "".to_string(),
                     amount_cents: 0,
                     direction: hho_types::Direction::Debit,
+                    manual_pane: None,
                 },
             })
             .collect()
@@ -493,6 +502,7 @@ mod tests {
                     category: "".to_string(),
                     amount_cents: 1000,
                     direction: hho_types::Direction::Credit,
+                    manual_pane: None,
                 },
             },
             Item {
@@ -506,6 +516,7 @@ mod tests {
                     category: "".to_string(),
                     amount_cents: 250,
                     direction: hho_types::Direction::Debit,
+                    manual_pane: None,
                 },
             },
         ];
@@ -525,6 +536,7 @@ mod tests {
                 category: "".to_string(),
                 amount_cents: 100,
                 direction: hho_types::Direction::Debit,
+                manual_pane: None,
             },
         }];
         let dest = vec![Item {
@@ -538,6 +550,7 @@ mod tests {
                 category: "".to_string(),
                 amount_cents: 200,
                 direction: hho_types::Direction::Debit,
+                manual_pane: None,
             },
         }];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));
@@ -574,6 +587,7 @@ mod tests {
                 category: "Uncategorized".to_string(),
                 amount_cents: 450,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -582,6 +596,7 @@ mod tests {
                 category: "Entertainment".to_string(),
                 amount_cents: 1599,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -590,6 +605,7 @@ mod tests {
                 category: "Groceries".to_string(),
                 amount_cents: 5000,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -598,6 +614,7 @@ mod tests {
                 category: "Misc".to_string(),
                 amount_cents: 100,
                 direction: Direction::Debit,
+                manual_pane: None,
             },
         ];
 
@@ -683,6 +700,7 @@ mod tests {
             category: "Uncategorized".to_string(),
             amount_cents: 450,
             direction: Direction::Debit,
+            manual_pane: None,
         }];
 
         let rules = vec![

@@ -747,6 +747,7 @@ mod tests {
                 category: "Travel".to_string(),
                 amount_cents: 28697,
                 direction: hho_types::Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -755,6 +756,7 @@ mod tests {
                 category: "".to_string(),
                 amount_cents: 540,
                 direction: hho_types::Direction::Debit,
+                manual_pane: None,
             },
             Transaction {
                 id: None,
@@ -763,6 +765,7 @@ mod tests {
                 category: "Refund, Special".to_string(),
                 amount_cents: 1000,
                 direction: hho_types::Direction::Credit,
+                manual_pane: None,
             },
         ];
 
