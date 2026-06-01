@@ -658,7 +658,23 @@ body {
   background-color: rgba(245, 166, 35, 1);
 }
 
+/* ── Draggable modal headers ─────────────────────────────────────────────── */
+
+.modal-title,
+.modal-container h2,
+.modal h2 {
+  cursor: grab;
+  user-select: none;
+}
+
+.modal-title:active,
+.modal-container h2:active,
+.modal h2:active {
+  cursor: grabbing;
+}
+
 /* ── Assign modal styling ────────────────────────────────────────────────── */
+
 
 .modal-container {
   width: min(90vw, 70rem);

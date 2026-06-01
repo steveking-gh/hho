@@ -5,6 +5,7 @@ use crate::components::rule_editor_modal::RuleEditorModal;
 use crate::state::AppState;
 use hho_types::AutoAssignRule;
 use leptos::prelude::*;
+use crate::components::draggable::use_draggable;
 use wasm_bindgen_futures::spawn_local;
 
 /// Finds a matching transaction vendor name from the loaded CSV to serve as a preview.
@@ -104,10 +105,12 @@ pub fn RulesModal() -> impl IntoView {
         drop(key_handle);
     });
 
+    let (drag_style, on_drag_start) = use_draggable();
+
     view! {
         <div class="modal-overlay" on:click=on_cancel>
-            <div class="modal-container rules-modal-container" on:click=|ev| ev.stop_propagation()>
-                <h2>"Manage Auto-Move Rules"</h2>
+            <div class="modal-container rules-modal-container" style=drag_style on:click=|ev| ev.stop_propagation()>
+                <h2 on:mousedown=on_drag_start>"Manage Auto-Move Rules"</h2>
 
                 <div class="rules-list-container">
                     <div class="rules-list-header">

@@ -1,6 +1,7 @@
 use crate::logic::Item;
 use hho_types::{parse_amount_cents, format_cents, Direction, Transaction};
 use leptos::prelude::*;
+use crate::components::draggable::use_draggable;
 
 fn parse_cents(s: &str) -> Result<i64, String> {
     let cents = parse_amount_cents(s).ok_or_else(|| "Invalid number format".to_string())?;
@@ -111,10 +112,12 @@ where
         }
     };
 
+    let (drag_style, on_drag_start) = use_draggable();
+
     view! {
         <div class="modal-overlay" on:click=on_cancel_overlay>
-            <div class="modal-container assign-modal" on:click=|ev| ev.stop_propagation() on:keydown=on_keydown>
-                <h2>"Edit Transaction"</h2>
+            <div class="modal-container assign-modal" style=drag_style on:click=|ev| ev.stop_propagation() on:keydown=on_keydown>
+                <h2 on:mousedown=on_drag_start>"Edit Transaction"</h2>
 
                 <div class="modal-field">
                     <label for="edit-date">"Date"</label>

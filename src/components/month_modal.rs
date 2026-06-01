@@ -1,6 +1,7 @@
 // Month / Year selection modal for filtering transaction rows by period.
 
 use crate::state::AppState;
+use crate::components::draggable::use_draggable;
 use leptos::prelude::*;
 
 #[component]
@@ -36,10 +37,12 @@ pub fn MonthModal() -> impl IntoView {
         temp_year.update(|y| *y += 1);
     };
 
+    let (drag_style, on_drag_start) = use_draggable();
+
     view! {
         <div class="modal-overlay">
-            <div class="modal month-modal">
-                <h2 class="modal-title">"Select Period"</h2>
+            <div class="modal month-modal" style=drag_style>
+                <h2 class="modal-title" on:mousedown=on_drag_start>"Select Period"</h2>
 
                 <div class="year-selector">
                     <button class="year-btn" on:click=prev_year>"◀"</button>

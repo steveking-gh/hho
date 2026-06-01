@@ -1,6 +1,7 @@
 use crate::state::AppState;
 use hho_types::{parse_amount_cents, Direction, Transaction};
 use leptos::prelude::*;
+use crate::components::draggable::use_draggable;
 
 fn parse_cents(s: &str) -> Result<i64, String> {
     let cents = parse_amount_cents(s).ok_or_else(|| "Invalid number format".to_string())?;
@@ -80,10 +81,12 @@ pub fn CreateTransactionModal() -> impl IntoView {
         state.is_create_transaction_modal_open.set(false);
     };
 
+    let (drag_style, on_drag_start) = use_draggable();
+
     view! {
         <div class="modal-overlay" on:click=on_cancel_overlay>
-            <div class="modal-container assign-modal" on:click=|ev| ev.stop_propagation()>
-                <h2>"Create New Transaction"</h2>
+            <div class="modal-container assign-modal" style=drag_style on:click=|ev| ev.stop_propagation()>
+                <h2 on:mousedown=on_drag_start>"Create New Transaction"</h2>
 
                 <div class="modal-field">
                     <label for="manual-date">"Date"</label>

@@ -7,6 +7,8 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::dto::{AmountScheme, AmountSchemeTag, Institution, PendingMapping};
 use crate::state::AppState;
+use crate::components::draggable::use_draggable;
+
 
 /// Split a comma-separated label string into trimmed, non-empty entries.
 fn split_labels(s: &str) -> Vec<String> {
@@ -165,10 +167,12 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
         state.pending_mapping.set(None);
     };
 
+    let (drag_style, on_drag_start) = use_draggable();
+
     view! {
         <div class="modal-overlay">
-            <div class="modal">
-                <h2 class="modal-title">"Map Columns — New Institution"</h2>
+            <div class="modal" style=drag_style>
+                <h2 class="modal-title" on:mousedown=on_drag_start>"Map Columns — New Institution"</h2>
 
                 <label class="modal-field">
                     <span>"Institution name"</span>
