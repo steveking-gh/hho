@@ -132,7 +132,7 @@ pub fn RulesModal() -> impl IntoView {
     let (drag_style, on_drag_start) = use_draggable();
 
     view! {
-        <div class="modal-overlay" on:click=on_cancel>
+        <div class="modal-overlay">
             <div class="modal-container rules-modal-container" style=drag_style on:click=|ev| ev.stop_propagation()>
                 <h2 on:mousedown=on_drag_start>"Manage Auto-Move Rules"</h2>
 

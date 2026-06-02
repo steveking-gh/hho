@@ -81,11 +81,6 @@ where
         }
     });
 
-    let on_cancel_overlay = {
-        let on_cancel = on_cancel.clone();
-        move |_| on_cancel()
-    };
-
     let on_cancel_btn = {
         let on_cancel = on_cancel.clone();
         move |_| on_cancel()
@@ -128,7 +123,7 @@ where
     let (drag_style, on_drag_start) = use_draggable();
 
     view! {
-        <div class="modal-overlay nested-modal-overlay" on:click=on_cancel_overlay>
+        <div class="modal-overlay nested-modal-overlay">
             <div class="modal-container assign-modal" style=drag_style on:click=|ev| ev.stop_propagation()>
                 <h2 on:mousedown=on_drag_start>"Edit Auto-Move Rule"</h2>
 

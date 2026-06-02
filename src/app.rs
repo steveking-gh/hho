@@ -733,4 +733,30 @@ mod tests {
         assert_eq!(props.initial_pane, hho_types::RulePane::Joint);
         assert_eq!(props.initial_category_override, "Coffee");
     }
+
+    #[test]
+    fn test_modal_overlays_are_modal() {
+        // Assert that none of the modal components allow closing the modal via clicking on the overlay.
+        // This ensures the main window remains inaccessible and background clicks do not close the dialogs.
+        let paths = [
+            "src/components/rule_editor_modal.rs",
+            "src/components/rules_modal.rs",
+            "src/components/transaction_editor_modal.rs",
+            "src/components/create_transaction_modal.rs",
+            "src/components/mapping_modal.rs",
+            "src/components/month_modal.rs",
+        ];
+
+        // Regex pattern to find any `<div class="...modal-overlay..." ... on:click=...>`
+        let re = regex::Regex::new(r#"(?s)<div\s+class="[^"]*modal-overlay[^"]*"[^>]*on:click\s*="#).unwrap();
+
+        for path in &paths {
+            let content = std::fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("Failed to read {}", path));
+
+            if re.is_match(&content) {
+                panic!("Security/UX Bug: Modal component {} allows closing by clicking on the overlay backdrop! All dialog overlays must block interactions and not dismiss on background clicks.", path);
+            }
+        }
+    }
 }

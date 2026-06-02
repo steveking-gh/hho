@@ -35,11 +35,6 @@ where
     let (amount_input, set_amount_input) = signal(default_amount);
     let (direction_input, set_direction_input) = signal(default_direction);
 
-    let on_cancel_overlay = {
-        let on_cancel = on_cancel.clone();
-        move |_| on_cancel()
-    };
-
     let on_cancel_btn = {
         let on_cancel = on_cancel.clone();
         move |_| on_cancel()
@@ -126,7 +121,7 @@ where
     let (drag_style, on_drag_start) = use_draggable();
 
     view! {
-        <div class="modal-overlay" on:click=on_cancel_overlay>
+        <div class="modal-overlay">
             <div class="modal-container assign-modal" style=drag_style on:click=|ev| ev.stop_propagation() on:keydown=on_keydown>
                 <h2 on:mousedown=on_drag_start>"Edit Transaction"</h2>
 

@@ -26,10 +26,6 @@ pub fn CreateTransactionModal() -> impl IntoView {
     let (amount_input, set_amount_input) = signal("".to_string());
     let (direction_input, set_direction_input) = signal(Direction::Debit);
 
-    let on_cancel_overlay = move |_| {
-        state.is_create_transaction_modal_open.set(false);
-    };
-
     let on_cancel_btn = move |_| {
         state.is_create_transaction_modal_open.set(false);
     };
@@ -89,7 +85,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
     let (drag_style, on_drag_start) = use_draggable();
 
     view! {
-        <div class="modal-overlay" on:click=on_cancel_overlay>
+        <div class="modal-overlay">
             <div class="modal-container assign-modal" style=drag_style on:click=|ev| ev.stop_propagation()>
                 <h2 on:mousedown=on_drag_start>"Create New Transaction"</h2>
 
