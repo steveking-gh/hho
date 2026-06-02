@@ -212,6 +212,21 @@ fn load_layout_from_config(state: AppState) {
     });
 }
 
+fn load_rules_from_config(state: AppState) {
+    spawn_local(async move {
+        if let Ok(rules) = ipc::get_auto_assign_rules(state).await {
+            state.auto_assign_rules.set(rules);
+            state.log(format!(
+                "[Init] auto-assign rules restored: count={}",
+                state.auto_assign_rules.get_untracked().len()
+            ));
+            if !state.raw_transactions.get_untracked().is_empty() {
+                state.apply_month_filter();
+            }
+        }
+    });
+}
+
 // ── App component ─────────────────────────────────────────────────────────────
 
 #[component]
@@ -229,6 +244,7 @@ pub fn App() -> impl IntoView {
 
     state.refresh_recent_files();
     load_layout_from_config(state);
+    load_rules_from_config(state);
 
     // ── Global mouse-move handler (drag-resize) ───────────────────────────────
     let move_handle = window_event_listener(ev::mousemove, move |ev| {

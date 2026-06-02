@@ -151,15 +151,9 @@ impl AppState {
         }
         self.raw_transactions.set(txns);
         self.current_institution.set(Some(institution.to_string()));
-        let state = self;
-        wasm_bindgen_futures::spawn_local(async move {
-            if let Ok(rules) = crate::ipc::get_auto_assign_rules(state).await {
-                state.auto_assign_rules.set(rules);
-            }
-            state.apply_month_filter();
-            state.active_pane.set(ActivePane::Middle);
-            state.refresh_recent_files();
-        });
+        self.apply_month_filter();
+        self.active_pane.set(ActivePane::Middle);
+        self.refresh_recent_files();
     }
 
     pub fn items_for(self, pane: ActivePane) -> RwSignal<Vec<Item>> {
