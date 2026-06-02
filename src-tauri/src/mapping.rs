@@ -115,6 +115,37 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
             .unwrap_or_default(),
         None => String::new(),
     };
+
+    let amount_col = inst.amount.amount_col();
+
+    let mut row_cols = Vec::new();
+    for (i, cell) in row.iter().enumerate() {
+        if inst.ignore_cols.contains(&i) {
+            continue;
+        }
+        let val = if i == inst.date_col {
+            date.clone()
+        } else if i == inst.vendor_col {
+            vendor.clone()
+        } else if Some(i) == inst.category_col {
+            category.clone()
+        } else if i == amount_col {
+            hho_types::format_dollars_signed(hho_types::net_cents(amount_cents, direction))
+        } else {
+            cell.trim().to_string()
+        };
+        row_cols.push(val);
+    }
+
+    let map_idx = |orig_idx: usize| -> Option<usize> {
+        if inst.ignore_cols.contains(&orig_idx) {
+            None
+        } else {
+            let ignored_before = inst.ignore_cols.iter().filter(|&&x| x < orig_idx).count();
+            Some(orig_idx - ignored_before)
+        }
+    };
+
     Some(Transaction {
         id: None,
         date,
@@ -123,6 +154,11 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         amount_cents,
         direction,
         manual_pane: None,
+        row_cols: Some(row_cols),
+        date_col: map_idx(inst.date_col),
+        vendor_col: map_idx(inst.vendor_col),
+        category_col: inst.category_col.and_then(map_idx),
+        amount_col: map_idx(amount_col),
     })
 }
 
@@ -426,5 +462,58 @@ mod tests {
         let toml_str = toml::to_string_pretty(&inst).unwrap();
         let recovered: Institution = toml::from_str(&toml_str).unwrap();
         assert_eq!(recovered, inst);
+    }
+
+    #[test]
+    fn test_parse_row_populates_row_cols_and_skips_ignored() {
+        let inst = chase();
+        // Row corresponds to Chase headers:
+        // Transaction Date, Post Date, Description, Category, Type, Amount, Memo
+        let csv_row = row(&["05/18/2026", "05/19/2026", "STARBUCKS", "Dining", "Sale", "-5.40", "some memo"]);
+        let parsed = parse_row(&inst, &csv_row).unwrap();
+
+        assert_eq!(parsed.date, "2026-05-18");
+        assert_eq!(parsed.vendor, "STARBUCKS");
+        assert_eq!(parsed.category, "Dining");
+        assert_eq!(parsed.amount_cents, 540);
+        assert_eq!(parsed.direction, Direction::Debit);
+
+        // Checked mapped columns:
+        // Mapped row_cols should only contain the 4 non-ignored columns: Date, Description, Category, Amount
+        let cols = parsed.row_cols.unwrap();
+        assert_eq!(cols.len(), 4);
+        assert_eq!(cols[0], "2026-05-18");
+        assert_eq!(cols[1], "STARBUCKS");
+        assert_eq!(cols[2], "Dining");
+        assert_eq!(cols[3], "-$5.40");
+
+        assert_eq!(parsed.date_col, Some(0));
+        assert_eq!(parsed.vendor_col, Some(1));
+        assert_eq!(parsed.category_col, Some(2));
+        assert_eq!(parsed.amount_col, Some(3));
+    }
+
+    #[test]
+    fn test_parse_row_includes_unignored_extra_columns() {
+        let mut inst = chase();
+        // Unignore index 6 (Memo column)
+        inst.ignore_cols = vec![1, 4]; // Only ignore Post Date (1) and Type (4)
+
+        let csv_row = row(&["05/18/2026", "05/19/2026", "STARBUCKS", "Dining", "Sale", "-5.40", "some memo"]);
+        let parsed = parse_row(&inst, &csv_row).unwrap();
+
+        let cols = parsed.row_cols.unwrap();
+        // Should have 5 columns: Date, Description, Category, Amount, Memo
+        assert_eq!(cols.len(), 5);
+        assert_eq!(cols[0], "2026-05-18");
+        assert_eq!(cols[1], "STARBUCKS");
+        assert_eq!(cols[2], "Dining");
+        assert_eq!(cols[3], "-$5.40");
+        assert_eq!(cols[4], "some memo");
+
+        assert_eq!(parsed.date_col, Some(0));
+        assert_eq!(parsed.vendor_col, Some(1));
+        assert_eq!(parsed.category_col, Some(2));
+        assert_eq!(parsed.amount_col, Some(3));
     }
 }

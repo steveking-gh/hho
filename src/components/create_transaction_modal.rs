@@ -57,6 +57,7 @@ pub fn CreateTransactionModal() -> impl IntoView {
             amount_cents: cents,
             direction: direction_val,
             manual_pane: None,
+            ..Default::default()
         };
 
         state.log(format!(

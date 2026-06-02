@@ -331,6 +331,7 @@ mod tests {
                 amount_cents: 450,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -340,6 +341,7 @@ mod tests {
                 amount_cents: 1599,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         ]);
         state.auto_assign_rules.set(vec![
@@ -387,6 +389,7 @@ mod tests {
                 amount_cents: 450,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -396,6 +399,7 @@ mod tests {
                 amount_cents: 1599,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         ];
         for (i, t) in txns.iter_mut().enumerate() {
@@ -435,6 +439,7 @@ mod tests {
                 amount_cents: 5000,
                 direction: Direction::Credit,
                 manual_pane: None,
+                ..Default::default()
             },
         ]);
         state.auto_assign_rules.set(vec![
@@ -469,6 +474,7 @@ mod tests {
                 amount_cents: 450,
                 direction: Direction::Debit,
                 manual_pane: Some(RulePane::Personal), // manually moved to Personal
+                ..Default::default()
             },
             Transaction {
                 id: Some(2),
@@ -478,6 +484,7 @@ mod tests {
                 amount_cents: 1599,
                 direction: Direction::Debit,
                 manual_pane: None, // routes normally by rules
+                ..Default::default()
             },
         ]);
         state.auto_assign_rules.set(vec![

@@ -103,6 +103,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let sample_rows = pm.sample_rows.clone();
     let pending_path = pm.pending_path.clone();
     let fingerprint = pm.fingerprint.clone();
+    let headers_preview = headers.clone();
 
     // ── Save handler ──────────────────────────────────────────────────────────
     let on_save = move |_| {
@@ -190,17 +191,27 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                     <table>
                         <thead>
                             <tr>
-                                {headers.iter().map(|h| view! { <th>{h.clone()}</th> }).collect_view()}
+                                {move || {
+                                    let h_flags = hidden.get();
+                                    headers_preview.iter().enumerate().filter(|&(i, _)| {
+                                        i >= h_flags.len() || !h_flags[i]
+                                    }).map(|(_, h)| view! { <th>{h.clone()}</th> }).collect_view()
+                                }}
                             </tr>
                         </thead>
                         <tbody>
-                            {sample_rows.iter().map(|row| {
-                                view! {
-                                    <tr>
-                                        {row.iter().map(|c| view! { <td>{c.clone()}</td> }).collect_view()}
-                                    </tr>
-                                }
-                            }).collect_view()}
+                            {move || {
+                                let h_flags = hidden.get();
+                                sample_rows.iter().map(|row| {
+                                    view! {
+                                        <tr>
+                                            {row.iter().enumerate().filter(|&(i, _)| {
+                                                i >= h_flags.len() || !h_flags[i]
+                                            }).map(|(_, c)| view! { <td>{c.clone()}</td> }).collect_view()}
+                                        </tr>
+                                    }
+                                }).collect_view()
+                            }}
                         </tbody>
                     </table>
                 </div>

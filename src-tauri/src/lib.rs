@@ -748,6 +748,7 @@ mod tests {
                 amount_cents: 28697,
                 direction: hho_types::Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -757,6 +758,7 @@ mod tests {
                 amount_cents: 540,
                 direction: hho_types::Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -766,6 +768,7 @@ mod tests {
                 amount_cents: 1000,
                 direction: hho_types::Direction::Credit,
                 manual_pane: None,
+                ..Default::default()
             },
         ];
 

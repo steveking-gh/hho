@@ -222,9 +222,13 @@ pub fn escape_regex(input: &str) -> String {
 /// Formats a transaction as a single-line pane label.
 /// Indicates debit flow with a leading negative sign and credit flow with a leading positive sign.
 pub fn format_txn(t: &hho_types::Transaction) -> String {
-    let amount =
-        hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
-    format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
+    if let Some(ref cols) = t.row_cols {
+        cols.join(" │ ")
+    } else {
+        let amount =
+            hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
+        format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
+    }
 }
 
 /// Routes transactions into destination panes based on auto-assign rules.
@@ -266,7 +270,19 @@ pub fn classify_transactions(
             }
         }
 
-        let category = overridden_category.unwrap_or_else(|| t.category.clone());
+        let mut row_cols = t.row_cols.clone();
+        let category = if let Some(ref cat) = overridden_category {
+            if let Some(ref mut cols) = row_cols {
+                if let Some(idx) = t.category_col {
+                    if idx < cols.len() {
+                        cols[idx] = cat.clone();
+                    }
+                }
+            }
+            cat.clone()
+        } else {
+            t.category.clone()
+        };
 
         let txn = hho_types::Transaction {
             id: t.id,
@@ -276,6 +292,11 @@ pub fn classify_transactions(
             amount_cents: t.amount_cents,
             direction: t.direction,
             manual_pane: t.manual_pane,
+            row_cols,
+            date_col: t.date_col,
+            vendor_col: t.vendor_col,
+            category_col: t.category_col,
+            amount_col: t.amount_col,
         };
         let item = Item {
             id: next_item_id(),
@@ -317,6 +338,7 @@ mod tests {
                     amount_cents: 0,
                     direction: hho_types::Direction::Debit,
                     manual_pane: None,
+                    ..Default::default()
                 },
             })
             .collect()
@@ -503,6 +525,7 @@ mod tests {
                     amount_cents: 1000,
                     direction: hho_types::Direction::Credit,
                     manual_pane: None,
+                    ..Default::default()
                 },
             },
             Item {
@@ -517,6 +540,7 @@ mod tests {
                     amount_cents: 250,
                     direction: hho_types::Direction::Debit,
                     manual_pane: None,
+                    ..Default::default()
                 },
             },
         ];
@@ -537,6 +561,7 @@ mod tests {
                 amount_cents: 100,
                 direction: hho_types::Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         }];
         let dest = vec![Item {
@@ -551,6 +576,7 @@ mod tests {
                 amount_cents: 200,
                 direction: hho_types::Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         }];
         let (_, new_dst, _) = transfer_item(source, dest, Some(0));
@@ -588,6 +614,7 @@ mod tests {
                 amount_cents: 450,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -597,6 +624,7 @@ mod tests {
                 amount_cents: 1599,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -606,6 +634,7 @@ mod tests {
                 amount_cents: 5000,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
             Transaction {
                 id: None,
@@ -615,6 +644,7 @@ mod tests {
                 amount_cents: 100,
                 direction: Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         ];
 
@@ -701,6 +731,7 @@ mod tests {
             amount_cents: 450,
             direction: Direction::Debit,
             manual_pane: None,
+            ..Default::default()
         }];
 
         let rules = vec![

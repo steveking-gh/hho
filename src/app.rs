@@ -660,6 +660,7 @@ mod tests {
                 amount_cents: 100,
                 direction: crate::dto::Direction::Debit,
                 manual_pane: None,
+                ..Default::default()
             },
         };
 

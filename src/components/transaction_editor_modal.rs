@@ -62,6 +62,24 @@ where
                 Err(_) => return,
             };
 
+            let mut row_cols = item.txn.row_cols.clone();
+            if let Some(ref mut cols) = row_cols {
+                if let Some(idx) = item.txn.date_col {
+                    if idx < cols.len() { cols[idx] = date_val.clone(); }
+                }
+                if let Some(idx) = item.txn.vendor_col {
+                    if idx < cols.len() { cols[idx] = vendor_val.clone(); }
+                }
+                if let Some(idx) = item.txn.category_col {
+                    if idx < cols.len() { cols[idx] = category_val.clone(); }
+                }
+                if let Some(idx) = item.txn.amount_col {
+                    if idx < cols.len() {
+                        cols[idx] = hho_types::format_dollars_signed(hho_types::net_cents(cents, direction_val));
+                    }
+                }
+            }
+
             let updated_txn = Transaction {
                 id: item.txn.id,
                 date: date_val.clone(),
@@ -70,6 +88,11 @@ where
                 amount_cents: cents,
                 direction: direction_val,
                 manual_pane: item.txn.manual_pane,
+                row_cols,
+                date_col: item.txn.date_col,
+                vendor_col: item.txn.vendor_col,
+                category_col: item.txn.category_col,
+                amount_col: item.txn.amount_col,
             };
 
             on_save(updated_txn);
@@ -99,15 +122,38 @@ where
                     Err(_) => return,
                 };
 
-                let updated_txn = Transaction {
-                    id: item.txn.id,
-                    date: date_val,
-                    vendor: vendor_val,
-                    category: category_val,
-                    amount_cents: cents,
-                    direction: direction_val,
-                    manual_pane: item.txn.manual_pane,
-                };
+            let mut row_cols = item.txn.row_cols.clone();
+            if let Some(ref mut cols) = row_cols {
+                if let Some(idx) = item.txn.date_col {
+                    if idx < cols.len() { cols[idx] = date_val.clone(); }
+                }
+                if let Some(idx) = item.txn.vendor_col {
+                    if idx < cols.len() { cols[idx] = vendor_val.clone(); }
+                }
+                if let Some(idx) = item.txn.category_col {
+                    if idx < cols.len() { cols[idx] = category_val.clone(); }
+                }
+                if let Some(idx) = item.txn.amount_col {
+                    if idx < cols.len() {
+                        cols[idx] = hho_types::format_dollars_signed(hho_types::net_cents(cents, direction_val));
+                    }
+                }
+            }
+
+            let updated_txn = Transaction {
+                id: item.txn.id,
+                date: date_val.clone(),
+                vendor: vendor_val.clone(),
+                category: category_val.clone(),
+                amount_cents: cents,
+                direction: direction_val,
+                manual_pane: item.txn.manual_pane,
+                row_cols,
+                date_col: item.txn.date_col,
+                vendor_col: item.txn.vendor_col,
+                category_col: item.txn.category_col,
+                amount_col: item.txn.amount_col,
+            };
 
                 on_save(updated_txn);
             }

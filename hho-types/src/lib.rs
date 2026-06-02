@@ -42,6 +42,15 @@ pub enum AmountScheme {
     },
 }
 
+impl AmountScheme {
+    pub fn amount_col(&self) -> usize {
+        match self {
+            Self::SingleSigned { amount_col, .. } => *amount_col,
+            Self::TypeColumn { amount_col, .. } => *amount_col,
+        }
+    }
+}
+
 /// A saved per-institution column mapping, keyed by header fingerprint.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Institution {
@@ -69,6 +78,16 @@ pub struct Transaction {
     pub direction: Direction,
     #[serde(skip)]
     pub manual_pane: Option<RulePane>,
+    #[serde(default)]
+    pub row_cols: Option<Vec<String>>,
+    #[serde(default)]
+    pub date_col: Option<usize>,
+    #[serde(default)]
+    pub vendor_col: Option<usize>,
+    #[serde(default)]
+    pub category_col: Option<usize>,
+    #[serde(default)]
+    pub amount_col: Option<usize>,
 }
 
 /// Identifies which amount scheme parsing strategy applies.
