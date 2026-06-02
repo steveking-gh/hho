@@ -59,6 +59,8 @@ pub struct Institution {
     pub date_col: usize,
     pub vendor_col: usize,
     #[serde(default)]
+    pub description_col: Option<usize>,
+    #[serde(default)]
     pub category_col: Option<usize>,
     #[serde(default)]
     pub ignore_cols: Vec<usize>,
@@ -73,6 +75,8 @@ pub struct Transaction {
     pub id: Option<u32>, // session-only ID, generated when loading/creating
     pub date: String, // canonical "YYYY-MM-DD"
     pub vendor: String,
+    #[serde(default)]
+    pub description: String,
     pub category: String,
     pub amount_cents: i64, // magnitude, always >= 0
     pub direction: Direction,
@@ -84,6 +88,8 @@ pub struct Transaction {
     pub date_col: Option<usize>,
     #[serde(default)]
     pub vendor_col: Option<usize>,
+    #[serde(default)]
+    pub description_col: Option<usize>,
     #[serde(default)]
     pub category_col: Option<usize>,
     #[serde(default)]
@@ -114,6 +120,7 @@ pub struct SuggestedMapping {
     pub vendor_col: usize,
     pub amount_col: usize,
     pub type_col: Option<usize>,
+    pub description_col: Option<usize>,
     pub category_col: Option<usize>,
     pub scheme: AmountSchemeTag,
     pub debit_is_negative: bool,
@@ -358,13 +365,40 @@ impl std::fmt::Display for RulePane {
     }
 }
 
-/// A regex rule mapping a vendor name to a destination pane.
+/// A rule mapping matching vendor and/or description to a destination pane.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AutoAssignRule {
-    pub regex: String,
+    #[serde(default)]
+    pub regex: Option<String>, // Legacy fallback
+    #[serde(default)]
+    pub vendor_regex: Option<String>,
+    #[serde(default)]
+    pub description_regex: Option<String>,
     pub pane: RulePane,
     #[serde(default)]
     pub category_override: Option<String>,
+}
+
+impl AutoAssignRule {
+    pub fn vendor_pattern(&self) -> Option<&str> {
+        self.vendor_regex.as_deref().or(self.regex.as_deref())
+    }
+
+    pub fn description_pattern(&self) -> Option<&str> {
+        self.description_regex.as_deref()
+    }
+
+    pub fn display_pattern(&self) -> String {
+        let v_pat = self.vendor_pattern().filter(|s| !s.is_empty());
+        let d_pat = self.description_pattern().filter(|s| !s.is_empty());
+
+        match (v_pat, d_pat) {
+            (Some(v), Some(d)) => format!("Vendor: \"{v}\" & Desc: \"{d}\""),
+            (Some(v), None) => format!("Vendor: \"{v}\""),
+            (None, Some(d)) => format!("Desc: \"{d}\""),
+            (None, None) => "Empty Rule".to_string(),
+        }
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

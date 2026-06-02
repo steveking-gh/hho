@@ -23,12 +23,14 @@ where
 {
     let default_date = item.txn.date.clone();
     let default_vendor = item.txn.vendor.clone();
+    let default_description = item.txn.description.clone();
     let default_category = item.txn.category.clone();
     let default_amount = format_cents(item.txn.amount_cents);
     let default_direction = item.txn.direction;
 
     let (date_input, set_date_input) = signal(default_date);
     let (vendor_input, set_vendor_input) = signal(default_vendor);
+    let (description_input, set_description_input) = signal(default_description);
     let (category_input, set_category_input) = signal(default_category);
     let (amount_input, set_amount_input) = signal(default_amount);
     let (direction_input, set_direction_input) = signal(default_direction);
@@ -43,12 +45,13 @@ where
         move |_| on_cancel()
     };
 
-    let on_save_click = {
+    let do_save = {
         let on_save = on_save.clone();
         let item = item.clone();
-        move |_| {
+        move || {
             let date_val = date_input.get_untracked();
             let vendor_val = vendor_input.get_untracked().trim().to_string();
+            let description_val = description_input.get_untracked().trim().to_string();
             let category_val = category_input.get_untracked().trim().to_string();
             let amount_val = amount_input.get_untracked();
             let direction_val = direction_input.get_untracked();
@@ -70,6 +73,9 @@ where
                 if let Some(idx) = item.txn.vendor_col {
                     if idx < cols.len() { cols[idx] = vendor_val.clone(); }
                 }
+                if let Some(idx) = item.txn.description_col {
+                    if idx < cols.len() { cols[idx] = description_val.clone(); }
+                }
                 if let Some(idx) = item.txn.category_col {
                     if idx < cols.len() { cols[idx] = category_val.clone(); }
                 }
@@ -82,15 +88,17 @@ where
 
             let updated_txn = Transaction {
                 id: item.txn.id,
-                date: date_val.clone(),
-                vendor: vendor_val.clone(),
-                category: category_val.clone(),
+                date: date_val,
+                vendor: vendor_val,
+                description: description_val,
+                category: category_val,
                 amount_cents: cents,
                 direction: direction_val,
                 manual_pane: item.txn.manual_pane,
                 row_cols,
                 date_col: item.txn.date_col,
                 vendor_col: item.txn.vendor_col,
+                description_col: item.txn.description_col,
                 category_col: item.txn.category_col,
                 amount_col: item.txn.amount_col,
             };
@@ -99,63 +107,18 @@ where
         }
     };
 
+    let on_save_click = {
+        let do_save = do_save.clone();
+        move |_| do_save()
+    };
 
     let on_keydown = {
-        let on_save = on_save.clone();
-        let item = item.clone();
+        let do_save = do_save.clone();
         move |ev: web_sys::KeyboardEvent| {
             if ev.key() == "Enter" {
                 ev.prevent_default();
                 ev.stop_propagation();
-                let date_val = date_input.get_untracked();
-                let vendor_val = vendor_input.get_untracked().trim().to_string();
-                let category_val = category_input.get_untracked().trim().to_string();
-                let amount_val = amount_input.get_untracked();
-                let direction_val = direction_input.get_untracked();
-
-                if date_val.is_empty() || date_val.len() != 10 || vendor_val.is_empty() {
-                    return;
-                }
-
-                let cents = match parse_cents(&amount_val) {
-                    Ok(c) => c,
-                    Err(_) => return,
-                };
-
-            let mut row_cols = item.txn.row_cols.clone();
-            if let Some(ref mut cols) = row_cols {
-                if let Some(idx) = item.txn.date_col {
-                    if idx < cols.len() { cols[idx] = date_val.clone(); }
-                }
-                if let Some(idx) = item.txn.vendor_col {
-                    if idx < cols.len() { cols[idx] = vendor_val.clone(); }
-                }
-                if let Some(idx) = item.txn.category_col {
-                    if idx < cols.len() { cols[idx] = category_val.clone(); }
-                }
-                if let Some(idx) = item.txn.amount_col {
-                    if idx < cols.len() {
-                        cols[idx] = hho_types::format_dollars_signed(hho_types::net_cents(cents, direction_val));
-                    }
-                }
-            }
-
-            let updated_txn = Transaction {
-                id: item.txn.id,
-                date: date_val.clone(),
-                vendor: vendor_val.clone(),
-                category: category_val.clone(),
-                amount_cents: cents,
-                direction: direction_val,
-                manual_pane: item.txn.manual_pane,
-                row_cols,
-                date_col: item.txn.date_col,
-                vendor_col: item.txn.vendor_col,
-                category_col: item.txn.category_col,
-                amount_col: item.txn.amount_col,
-            };
-
-                on_save(updated_txn);
+                do_save();
             }
         }
     };
@@ -187,6 +150,18 @@ where
                         on:input=move |ev| set_vendor_input.set(event_target_value(&ev))
                         placeholder="Enter vendor name"
                         autofocus
+                        autocomplete="off"
+                    />
+                </div>
+
+                <div class="modal-field">
+                    <label for="edit-description">"Description"</label>
+                    <input
+                        id="edit-description"
+                        type="text"
+                        prop:value=description_input
+                        on:input=move |ev| set_description_input.set(event_target_value(&ev))
+                        placeholder="Enter description (optional)"
                         autocomplete="off"
                     />
                 </div>

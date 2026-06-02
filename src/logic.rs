@@ -227,7 +227,60 @@ pub fn format_txn(t: &hho_types::Transaction) -> String {
     } else {
         let amount =
             hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
-        format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
+        if t.description.is_empty() {
+            format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
+        } else {
+            format!("{} │ {} │ {} │ {} │ {}", t.date, t.vendor, t.description, amount, t.category)
+        }
+    }
+}
+
+/// A compiled cache of an auto-assign rule for fast/repeated matching.
+pub struct CompiledRule {
+    pub vendor_re: Option<regex::Regex>,
+    pub desc_re: Option<regex::Regex>,
+    pub pane: hho_types::RulePane,
+    pub category_override: Option<String>,
+}
+
+impl CompiledRule {
+    /// Compiles a rule, returning None if the pattern contains errors or matches nothing.
+    pub fn new(rule: &hho_types::AutoAssignRule) -> Option<Self> {
+        let v_pat = rule.vendor_pattern().filter(|s| !s.is_empty());
+        let d_pat = rule.description_pattern().filter(|s| !s.is_empty());
+
+        if v_pat.is_none() && d_pat.is_none() {
+            return None;
+        }
+
+        let vendor_re = match v_pat {
+            Some(pat) => Some(compile_rule(pat).ok()?),
+            None => None,
+        };
+        let desc_re = match d_pat {
+            Some(pat) => Some(compile_rule(pat).ok()?),
+            None => None,
+        };
+
+        Some(Self {
+            vendor_re,
+            desc_re,
+            pane: rule.pane,
+            category_override: rule.category_override.clone(),
+        })
+    }
+
+    /// Evaluates if a transaction's vendor and description match this rule.
+    pub fn matches(&self, vendor: &str, description: &str) -> bool {
+        let matches_vendor = match &self.vendor_re {
+            Some(re) => re.is_match(vendor),
+            None => true,
+        };
+        let matches_desc = match &self.desc_re {
+            Some(re) => re.is_match(description),
+            None => true,
+        };
+        matches_vendor && matches_desc
     }
 }
 
@@ -238,13 +291,9 @@ pub fn classify_transactions(
     txns: Vec<hho_types::Transaction>,
     rules: &[hho_types::AutoAssignRule],
 ) -> (Vec<Item>, Vec<Item>, Vec<Item>, Vec<Item>) {
-    let compiled_rules: Vec<(regex::Regex, hho_types::RulePane, Option<String>)> = rules
+    let compiled_rules: Vec<CompiledRule> = rules
         .iter()
-        .filter_map(|r| {
-            compile_rule(&r.regex)
-                .ok()
-                .map(|re| (re, r.pane, r.category_override.clone()))
-        })
+        .filter_map(CompiledRule::new)
         .collect();
 
     let mut left = vec![];
@@ -261,10 +310,10 @@ pub fn classify_transactions(
             matched_pane = Some(pane);
             is_manual = true;
         } else {
-            for (re, pane, cat_override) in &compiled_rules {
-                if re.is_match(&t.vendor) {
-                    matched_pane = Some(*pane);
-                    overridden_category = cat_override.clone();
+            for rule in &compiled_rules {
+                if rule.matches(&t.vendor, &t.description) {
+                    matched_pane = Some(rule.pane);
+                    overridden_category = rule.category_override.clone();
                     break;
                 }
             }
@@ -288,6 +337,7 @@ pub fn classify_transactions(
             id: t.id,
             date: t.date.clone(),
             vendor: t.vendor.clone(),
+            description: t.description.clone(),
             category,
             amount_cents: t.amount_cents,
             direction: t.direction,
@@ -295,6 +345,7 @@ pub fn classify_transactions(
             row_cols,
             date_col: t.date_col,
             vendor_col: t.vendor_col,
+            description_col: t.description_col,
             category_col: t.category_col,
             amount_col: t.amount_col,
         };
@@ -650,17 +701,23 @@ mod tests {
 
         let rules = vec![
             AutoAssignRule {
-                regex: "STARBUCKS.*".to_string(),
+                regex: Some("STARBUCKS.*".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint,
                 category_override: Some("Coffee & Tea".to_string()),
             },
             AutoAssignRule {
-                regex: "NETFLIX".to_string(),
+                regex: Some("NETFLIX".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Personal,
                 category_override: None,
             },
             AutoAssignRule {
-                regex: "SPAMMY_EMAIL".to_string(),
+                regex: Some("SPAMMY_EMAIL".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Ignored,
                 category_override: Some("Junk".to_string()),
             },
@@ -736,12 +793,16 @@ mod tests {
 
         let rules = vec![
             AutoAssignRule {
-                regex: "STARBUCKS.*".to_string(),
+                regex: Some("STARBUCKS.*".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint,
                 category_override: Some("Coffee".to_string()),
             },
             AutoAssignRule {
-                regex: ".*COFFEE".to_string(),
+                regex: Some(".*COFFEE".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Personal,
                 category_override: Some("Tea".to_string()),
             },
@@ -754,5 +815,102 @@ mod tests {
         assert!(right.is_empty());
         assert!(middle.is_empty());
         assert!(bottom.is_empty());
+    }
+
+    #[test]
+    fn test_classify_transactions_with_multi_regex_matching() {
+        use hho_types::{AutoAssignRule, Direction, RulePane, Transaction};
+
+        let txns = vec![
+            Transaction {
+                id: None,
+                date: "2026-05-15".to_string(),
+                vendor: "STARBUCKS COFFEE".to_string(),
+                description: "Seattle branch".to_string(),
+                category: "Uncategorized".to_string(),
+                amount_cents: 450,
+                direction: Direction::Debit,
+                manual_pane: None,
+                ..Default::default()
+            },
+            Transaction {
+                id: None,
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX".to_string(),
+                description: "Monthly subscription fee".to_string(),
+                category: "Entertainment".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+                manual_pane: None,
+                ..Default::default()
+            },
+            Transaction {
+                id: None,
+                date: "2026-05-17".to_string(),
+                vendor: "SAFEWAY".to_string(),
+                description: "Food supplies".to_string(),
+                category: "Groceries".to_string(),
+                amount_cents: 5000,
+                direction: Direction::Debit,
+                manual_pane: None,
+                ..Default::default()
+            },
+        ];
+
+        // Rules to test:
+        // Rule 1: Matches Vendor only ("STARBUCKS.*") -> Joint
+        // Rule 2: Matches BOTH Vendor and Description ("NETFLIX" & "Monthly.*") -> Personal
+        // Rule 3: Matches Description only ("Food.*") -> Ignored
+        // Rule 4: Matches BOTH Vendor and Description, but one mismatch -> shouldn't match (remains in Unassigned)
+        let rules = vec![
+            AutoAssignRule {
+                regex: None,
+                vendor_regex: Some("STARBUCKS.*".to_string()),
+                description_regex: None,
+                pane: RulePane::Joint,
+                category_override: None,
+            },
+            AutoAssignRule {
+                regex: None,
+                vendor_regex: Some("NETFLIX".to_string()),
+                description_regex: Some("Monthly.*".to_string()),
+                pane: RulePane::Personal,
+                category_override: None,
+            },
+            AutoAssignRule {
+                regex: None,
+                vendor_regex: None,
+                description_regex: Some("Food.*".to_string()),
+                pane: RulePane::Ignored,
+                category_override: None,
+            },
+            AutoAssignRule {
+                regex: None,
+                vendor_regex: Some("SAFEWAY".to_string()),
+                description_regex: Some("Gasoline.*".to_string()), // Doesn't match "Food supplies"
+                pane: RulePane::Joint,
+                category_override: None,
+            },
+        ];
+
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+
+        // Starbucks matched Rule 1 (Vendor only) and goes to Joint (left)
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].txn.vendor, "STARBUCKS COFFEE");
+
+        // Netflix matched Rule 2 (Both match) and goes to Personal (right)
+        assert_eq!(right.len(), 1);
+        assert_eq!(right[0].txn.vendor, "NETFLIX");
+
+        // Safeway:
+        // - Matches Description only rule (Rule 3) and goes to Ignored (bottom)
+        // - Rule 4 fails to match because description mismatch ("Gasoline.*" vs "Food supplies")
+        // Since Rule 3 comes first and matches description, it should go to Ignored!
+        assert_eq!(bottom.len(), 1);
+        assert_eq!(bottom[0].txn.vendor, "SAFEWAY");
+
+        // Unassigned middle should be empty since all 3 matched a rule
+        assert!(middle.is_empty());
     }
 }

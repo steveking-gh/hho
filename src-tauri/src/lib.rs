@@ -381,12 +381,12 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
     let mut wtr =
         csv::Writer::from_path(path).map_err(|e| format!("failed to create file: {e}"))?;
 
-    wtr.write_record(["Date", "Vendor", "Amount", "Category"])
+    wtr.write_record(["Date", "Vendor", "Description", "Amount", "Category"])
         .map_err(|e| format!("failed to write header: {e}"))?;
 
     for t in transactions {
         let amount_str = hho_types::format_cents(hho_types::net_cents(t.amount_cents, t.direction));
-        wtr.write_record([&t.date, &t.vendor, &amount_str, &t.category])
+        wtr.write_record([&t.date, &t.vendor, &t.description, &amount_str, &t.category])
             .map_err(|e| format!("failed to write record: {e}"))?;
     }
 
@@ -589,6 +589,7 @@ mod tests {
                 fingerprint: "date,description,amount".into(),
                 date_col: 0,
                 vendor_col: 1,
+                description_col: None,
                 category_col: None,
                 ignore_cols: vec![],
                 amount: hho_types::AmountScheme::SingleSigned {
@@ -617,12 +618,16 @@ mod tests {
             institutions: vec![],
             auto_assign_rules: vec![
                 AutoAssignRule {
-                    regex: "STARBUCKS".to_string(),
+                    regex: Some("STARBUCKS".to_string()),
+                    vendor_regex: None,
+                    description_regex: None,
                     pane: RulePane::Joint,
                     category_override: None,
                 },
                 AutoAssignRule {
-                    regex: "NETFLIX".to_string(),
+                    regex: Some("NETFLIX".to_string()),
+                    vendor_regex: Some("NETFLIX.*".to_string()),
+                    description_regex: Some("NETFLIX".to_string()),
                     pane: RulePane::Personal,
                     category_override: Some("Streaming".to_string()),
                 },
@@ -637,14 +642,18 @@ mod tests {
     fn save_auto_assign_rules_replaces_all_rules_in_config() {
         let mut cfg = UserConfig {
             auto_assign_rules: vec![AutoAssignRule {
-                regex: "OLD".to_string(),
+                regex: Some("OLD".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint,
                 category_override: None,
             }],
             ..Default::default()
         };
         let new_rules = vec![AutoAssignRule {
-            regex: "NEW".to_string(),
+            regex: Some("NEW".to_string()),
+            vendor_regex: None,
+            description_regex: None,
             pane: RulePane::Personal,
             category_override: None,
         }];
@@ -744,6 +753,7 @@ mod tests {
                 id: None,
                 date: "2026-05-18".to_string(),
                 vendor: "BUDGET RENT A CAR".to_string(),
+                description: "Car rental memo".to_string(),
                 category: "Travel".to_string(),
                 amount_cents: 28697,
                 direction: hho_types::Direction::Debit,
@@ -754,6 +764,7 @@ mod tests {
                 id: None,
                 date: "2026-05-19".to_string(),
                 vendor: "STARBUCKS".to_string(),
+                description: "".to_string(),
                 category: "".to_string(),
                 amount_cents: 540,
                 direction: hho_types::Direction::Debit,
@@ -764,6 +775,7 @@ mod tests {
                 id: None,
                 date: "2026-05-20".to_string(),
                 vendor: "CREDIT REFUND".to_string(),
+                description: "Refund details".to_string(),
                 category: "Refund, Special".to_string(),
                 amount_cents: 1000,
                 direction: hho_types::Direction::Credit,
@@ -778,10 +790,10 @@ mod tests {
         let contents = std::fs::read_to_string(&path).unwrap();
         let contents_lf = contents.replace("\r\n", "\n");
         let expected = "\
-Date,Vendor,Amount,Category
-2026-05-18,BUDGET RENT A CAR,-286.97,Travel
-2026-05-19,STARBUCKS,-5.40,
-2026-05-20,CREDIT REFUND,10.00,\"Refund, Special\"
+Date,Vendor,Description,Amount,Category
+2026-05-18,BUDGET RENT A CAR,Car rental memo,-286.97,Travel
+2026-05-19,STARBUCKS,,-5.40,
+2026-05-20,CREDIT REFUND,Refund details,10.00,\"Refund, Special\"
 
 TOTAL,-282.37
 (No Category),-5.40

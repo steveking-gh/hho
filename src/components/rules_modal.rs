@@ -8,18 +8,42 @@ use leptos::prelude::*;
 use crate::components::draggable::use_draggable;
 use wasm_bindgen_futures::spawn_local;
 
-/// Finds a matching transaction vendor name from the loaded CSV to serve as a preview.
-fn find_preview_vendor(state: AppState, regex_str: &str) -> String {
+/// Finds a matching transaction from the loaded CSV to serve as a preview.
+fn find_preview_txn(state: AppState, rule: &AutoAssignRule) -> (String, String) {
     let txns = state.raw_transactions.get_untracked();
+    let v_pat = rule.vendor_pattern().filter(|s| !s.is_empty());
+    let d_pat = rule.description_pattern().filter(|s| !s.is_empty());
+
     for t in txns {
-        if let Ok(re) = regex::Regex::new(regex_str) {
-            if re.is_match(&t.vendor) {
-                return t.vendor;
+        let matches_vendor = match v_pat {
+            Some(pat) => {
+                if let Ok(re) = regex::Regex::new(pat) {
+                    re.is_match(&t.vendor)
+                } else {
+                    false
+                }
             }
+            None => true,
+        };
+        let matches_desc = match d_pat {
+            Some(pat) => {
+                if let Ok(re) = regex::Regex::new(pat) {
+                    re.is_match(&t.description)
+                } else {
+                    false
+                }
+            }
+            None => true,
+        };
+        if matches_vendor && matches_desc && (v_pat.is_some() || d_pat.is_some()) {
+            return (t.vendor.clone(), t.description.clone());
         }
     }
-    // Falls back to the regex pattern when finding no match.
-    regex_str.to_string()
+    // Fallback if no matching txn is found:
+    (
+        v_pat.unwrap_or("").to_string(),
+        d_pat.unwrap_or("").to_string(),
+    )
 }
 
 #[component]
@@ -169,7 +193,7 @@ pub fn RulesModal() -> impl IntoView {
                                             on:click=on_row_click
                                             on:dblclick=on_row_double_click
                                         >
-                                            <div class="col-pattern">{rule_clone.regex}</div>
+                                            <div class="col-pattern">{rule_clone.display_pattern()}</div>
                                             <div class="col-pane">{display_pane}</div>
                                             <div class="col-actions">
                                                 <button
@@ -214,12 +238,16 @@ pub fn RulesModal() -> impl IntoView {
             if idx >= draft.len() { return Option::<String>::None.into_any(); }
 
             let rule_to_edit = draft[idx].clone();
-            let preview_vendor = find_preview_vendor(state, &rule_to_edit.regex);
+            let (preview_vendor, preview_description) = find_preview_txn(state, &rule_to_edit);
+            let initial_vendor_regex = rule_to_edit.vendor_regex.as_deref().or(rule_to_edit.regex.as_deref()).unwrap_or("").to_string();
+            let initial_description_regex = rule_to_edit.description_regex.clone().unwrap_or_default();
 
             view! {
                 <RuleEditorModal
                     preview_vendor=preview_vendor
-                    initial_regex=rule_to_edit.regex
+                    preview_description=preview_description
+                    initial_vendor_regex=initial_vendor_regex
+                    initial_description_regex=initial_description_regex
                     initial_pane=rule_to_edit.pane
                     initial_category_override=rule_to_edit.category_override.clone().unwrap_or_default()
                     on_save=move |updated_rule: AutoAssignRule| {

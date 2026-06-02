@@ -79,6 +79,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
     let name = RwSignal::new(String::new());
     let date_col = RwSignal::new(s.date_col);
     let vendor_col = RwSignal::new(s.vendor_col);
+    let description_col = RwSignal::new(s.description_col);
     let category_col = RwSignal::new(s.category_col);
     let amount_col = RwSignal::new(s.amount_col);
     let scheme = RwSignal::new(s.scheme);
@@ -143,6 +144,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
             fingerprint: fingerprint.clone(),
             date_col: date_col.get_untracked(),
             vendor_col: vendor_col.get_untracked(),
+            description_col: description_col.get_untracked(),
             category_col: category_col.get_untracked(),
             ignore_cols,
             amount,
@@ -219,6 +221,7 @@ pub fn MappingModal(pm: PendingMapping) -> impl IntoView {
                 // ── Date / Vendor ─────────────────────────────────────────────
                 <ColumnSelect label="Transaction Date column" headers=headers.clone() value=date_col />
                 <ColumnSelect label="Vendor Name column" headers=headers.clone() value=vendor_col />
+                <OptionalColumnSelect label="Description column (optional)" headers=headers.clone() value=description_col />
                 <OptionalColumnSelect label="Category column (optional)" headers=headers.clone() value=category_col />
 
                 // ── Amount / direction scheme ─────────────────────────────────

@@ -346,12 +346,16 @@ mod tests {
         ]);
         state.auto_assign_rules.set(vec![
             AutoAssignRule {
-                regex: "STARBUCKS.*".to_string(),
+                regex: Some("STARBUCKS.*".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint,
                 category_override: Some("Coffee & Tea".to_string()),
             },
             AutoAssignRule {
-                regex: "NETFLIX".to_string(),
+                regex: Some("NETFLIX".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Personal,
                 category_override: None,
             },
@@ -444,7 +448,9 @@ mod tests {
         ]);
         state.auto_assign_rules.set(vec![
             AutoAssignRule {
-                regex: "PAYMENT.*".to_string(),
+                regex: Some("PAYMENT.*".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Ignored,
                 category_override: None,
             },
@@ -489,12 +495,16 @@ mod tests {
         ]);
         state.auto_assign_rules.set(vec![
             AutoAssignRule {
-                regex: "STARBUCKS".to_string(),
+                regex: Some("STARBUCKS".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint, // Rule would route Starbucks to Joint
                 category_override: None,
             },
             AutoAssignRule {
-                regex: "NETFLIX".to_string(),
+                regex: Some("NETFLIX".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: RulePane::Joint, // Rule routes Netflix to Joint
                 category_override: None,
             },

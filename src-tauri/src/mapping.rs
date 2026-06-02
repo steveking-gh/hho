@@ -115,6 +115,13 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
             .unwrap_or_default(),
         None => String::new(),
     };
+    let description = match inst.description_col {
+        Some(col) => row
+            .get(col)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default(),
+        None => String::new(),
+    };
 
     let amount_col = inst.amount.amount_col();
 
@@ -127,6 +134,8 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
             date.clone()
         } else if i == inst.vendor_col {
             vendor.clone()
+        } else if Some(i) == inst.description_col {
+            description.clone()
         } else if Some(i) == inst.category_col {
             category.clone()
         } else if i == amount_col {
@@ -150,6 +159,7 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         id: None,
         date,
         vendor,
+        description,
         category,
         amount_cents,
         direction,
@@ -157,6 +167,7 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         row_cols: Some(row_cols),
         date_col: map_idx(inst.date_col),
         vendor_col: map_idx(inst.vendor_col),
+        description_col: inst.description_col.and_then(map_idx),
         category_col: inst.category_col.and_then(map_idx),
         amount_col: map_idx(amount_col),
     })
@@ -212,10 +223,44 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
     let category_col = find_exact_match(headers, &["category"])
         .or_else(|| find_col(headers, &["category"]));
 
-    // Hide every column not used as date, vendor, amount, or category by default.
+    let mut description_col = headers
+        .iter()
+        .enumerate()
+        .find(|&(i, h)| {
+            if i == date_col || i == vendor_col || i == amount_col || Some(i) == type_col || Some(i) == category_col {
+                return false;
+            }
+            let trimmed = h.trim();
+            ["description", "desc", "memo", "notes", "comment", "details"]
+                .iter()
+                .any(|&name| trimmed.eq_ignore_ascii_case(name))
+        })
+        .map(|(i, _)| i);
+
+    if description_col.is_none() {
+        description_col = headers
+            .iter()
+            .enumerate()
+            .find(|&(i, h)| {
+                if i == date_col || i == vendor_col || i == amount_col || Some(i) == type_col || Some(i) == category_col {
+                    return false;
+                }
+                let lh = h.trim().to_lowercase();
+                ["description", "desc", "memo", "notes", "comment", "details"]
+                    .iter()
+                    .any(|&k| lh.contains(k))
+            })
+            .map(|(i, _)| i);
+    }
+
+    // Hide every column not used as date, vendor, amount, category, or description by default.
     let ignore_cols = (0..headers.len())
         .filter(|i| {
-            *i != date_col && *i != vendor_col && *i != amount_col && Some(*i) != category_col
+            *i != date_col
+                && *i != vendor_col
+                && *i != amount_col
+                && Some(*i) != category_col
+                && Some(*i) != description_col
         })
         .collect();
 
@@ -224,6 +269,7 @@ pub fn suggest_mapping(headers: &[String]) -> SuggestedMapping {
         vendor_col,
         amount_col,
         type_col,
+        description_col,
         category_col,
         scheme: hho_types::AmountSchemeTag::SingleSigned,
         debit_is_negative: true,
@@ -282,6 +328,7 @@ mod tests {
             fingerprint: "transaction date,post date,description,category,type,amount,memo".into(),
             date_col: 0,
             vendor_col: 2,
+            description_col: None,
             category_col: Some(3),
             ignore_cols: vec![1, 4, 6],
             amount: AmountScheme::SingleSigned {
@@ -387,7 +434,8 @@ mod tests {
         assert_eq!(s.amount_col, 5);
         assert_eq!(s.type_col, Some(4));
         assert_eq!(s.category_col, Some(3));
-        assert_eq!(s.ignore_cols, vec![1, 4, 6]);
+        assert_eq!(s.description_col, Some(6));
+        assert_eq!(s.ignore_cols, vec![1, 4]);
     }
 
     #[test]
@@ -450,6 +498,7 @@ mod tests {
             fingerprint: "date,description,amount,transaction type".into(),
             date_col: 0,
             vendor_col: 1,
+            description_col: None,
             category_col: None,
             ignore_cols: vec![],
             amount: AmountScheme::TypeColumn {
@@ -515,5 +564,42 @@ mod tests {
         assert_eq!(parsed.vendor_col, Some(1));
         assert_eq!(parsed.category_col, Some(2));
         assert_eq!(parsed.amount_col, Some(3));
+    }
+
+    #[test]
+    fn test_parse_row_with_description_mapped() {
+        let mut inst = chase();
+        inst.description_col = Some(6); // Map Memo to description
+        inst.ignore_cols = vec![1, 4]; // Ignore only Post Date and Type
+
+        let csv_row = row(&["05/18/2026", "05/19/2026", "STARBUCKS", "Dining", "Sale", "-5.40", "My coffee memo"]);
+        let parsed = parse_row(&inst, &csv_row).unwrap();
+
+        assert_eq!(parsed.date, "2026-05-18");
+        assert_eq!(parsed.vendor, "STARBUCKS");
+        assert_eq!(parsed.description, "My coffee memo");
+        assert_eq!(parsed.category, "Dining");
+        assert_eq!(parsed.amount_cents, 540);
+
+        let cols = parsed.row_cols.unwrap();
+        // Should have 5 columns in row_cols: Date, Description (originally vendor_col), Category, Amount, Description (originally memo)
+        // Wait, index mapping:
+        // 0 -> date_col
+        // 2 -> vendor_col (index 1 in row_cols)
+        // 3 -> category_col (index 2 in row_cols)
+        // 5 -> amount_col (index 3 in row_cols)
+        // 6 -> description_col (index 4 in row_cols)
+        assert_eq!(cols.len(), 5);
+        assert_eq!(cols[0], "2026-05-18");
+        assert_eq!(cols[1], "STARBUCKS");
+        assert_eq!(cols[2], "Dining");
+        assert_eq!(cols[3], "-$5.40");
+        assert_eq!(cols[4], "My coffee memo");
+
+        assert_eq!(parsed.date_col, Some(0));
+        assert_eq!(parsed.vendor_col, Some(1));
+        assert_eq!(parsed.category_col, Some(2));
+        assert_eq!(parsed.amount_col, Some(3));
+        assert_eq!(parsed.description_col, Some(4));
     }
 }

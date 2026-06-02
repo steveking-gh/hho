@@ -106,12 +106,12 @@ pub(crate) fn handle_open_result(state: AppState, result: OpenResult) {
     }
 }
 
-/// Searches for an existing auto-assign rule matching the vendor name.
-fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types::AutoAssignRule)> {
+/// Searches for an existing auto-assign rule matching the vendor and description.
+fn find_matching_rule(state: AppState, vendor: &str, description: &str) -> Option<(usize, hho_types::AutoAssignRule)> {
     let rules = state.auto_assign_rules.get_untracked();
     for (idx, r) in rules.iter().enumerate() {
-        if let Ok(re) = crate::logic::compile_rule(&r.regex) {
-            if re.is_match(vendor) {
+        if let Some(compiled) = crate::logic::CompiledRule::new(r) {
+            if compiled.matches(vendor, description) {
                 return Some((idx, r.clone()));
             }
         }
@@ -123,7 +123,9 @@ fn find_matching_rule(state: AppState, vendor: &str) -> Option<(usize, hho_types
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssignModalProps {
     pub preview_vendor: String,
-    pub initial_regex: String,
+    pub preview_description: String,
+    pub initial_vendor_regex: String,
+    pub initial_description_regex: String,
     pub initial_pane: hho_types::RulePane,
     pub initial_category_override: String,
 }
@@ -131,12 +133,17 @@ pub struct AssignModalProps {
 /// Builds the initialization properties for the auto-assign rule editor modal.
 pub fn build_assign_modal_props(state: AppState, item: &Item) -> AssignModalProps {
     let vendor = item.txn.vendor.clone();
+    let description = item.txn.description.clone();
     let escaped_vendor = crate::logic::escape_regex(&vendor);
-    let matched_info = find_matching_rule(state, &vendor);
-    let initial_regex = matched_info
+    let matched_info = find_matching_rule(state, &vendor, &description);
+    let initial_vendor_regex = matched_info
         .as_ref()
-        .map(|(_, r)| r.regex.clone())
+        .map(|(_, r)| r.vendor_pattern().unwrap_or("").to_string())
         .unwrap_or_else(|| escaped_vendor.clone());
+    let initial_description_regex = matched_info
+        .as_ref()
+        .map(|(_, r)| r.description_pattern().unwrap_or("").to_string())
+        .unwrap_or_default();
     let initial_pane = matched_info
         .as_ref()
         .map(|(_, r)| r.pane)
@@ -148,15 +155,17 @@ pub fn build_assign_modal_props(state: AppState, item: &Item) -> AssignModalProp
 
     AssignModalProps {
         preview_vendor: vendor,
-        initial_regex,
+        preview_description: description,
+        initial_vendor_regex,
+        initial_description_regex,
         initial_pane,
         initial_category_override,
     }
 }
 
 /// Saves an auto-assign rule to the persistent configuration.
-pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor: &str) {
-    let matched_info = find_matching_rule(state, vendor);
+pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor: &str, description: &str) {
+    let matched_info = find_matching_rule(state, vendor, description);
     let mut rules = state.auto_assign_rules.get_untracked();
     if let Some((idx, _)) = matched_info {
         if idx < rules.len() {
@@ -167,9 +176,9 @@ pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor:
     }
 
     state.log(format!(
-        "[AutoAssign] saving {} rules: regex=\"{}\" target={}",
+        "[AutoAssign] saving {} rules: pattern=\"{}\" target={}",
         rules.len(),
-        rule.regex,
+        rule.display_pattern(),
         rule.pane
     ));
 
@@ -521,10 +530,12 @@ pub fn App() -> impl IntoView {
             {move || state.assign_modal_item.get().map(|item| {
                 let props = build_assign_modal_props(state, &item);
                 let vendor = props.preview_vendor.clone();
+                let description = props.preview_description.clone();
                 let on_save = move |rule: hho_types::AutoAssignRule| {
                     let vendor = vendor.clone();
+                    let description = description.clone();
                     spawn_local(async move {
-                        save_rule(state, rule, &vendor).await;
+                        save_rule(state, rule, &vendor, &description).await;
                     });
                 };
                 let on_cancel = move || {
@@ -533,7 +544,9 @@ pub fn App() -> impl IntoView {
                 view! {
                     <RuleEditorModal
                         preview_vendor=props.preview_vendor
-                        initial_regex=props.initial_regex
+                        preview_description=props.preview_description
+                        initial_vendor_regex=props.initial_vendor_regex
+                        initial_description_regex=props.initial_description_regex
                         initial_pane=props.initial_pane
                         initial_category_override=props.initial_category_override
                         on_save=on_save
@@ -611,31 +624,35 @@ mod tests {
         let state = AppState::new();
         state.auto_assign_rules.set(vec![
             hho_types::AutoAssignRule {
-                regex: "STARBUCKS.*".to_string(),
+                regex: Some("STARBUCKS.*".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: hho_types::RulePane::Joint,
                 category_override: Some("Coffee".to_string()),
             },
             hho_types::AutoAssignRule {
-                regex: "NETFLIX".to_string(),
+                regex: Some("NETFLIX".to_string()),
+                vendor_regex: None,
+                description_regex: None,
                 pane: hho_types::RulePane::Personal,
                 category_override: None,
             },
         ]);
 
         // Verify matches are found with correct indices
-        let match1 = find_matching_rule(state, "STARBUCKS COFFEE");
+        let match1 = find_matching_rule(state, "STARBUCKS COFFEE", "");
         assert!(match1.is_some());
         let (idx1, rule1) = match1.unwrap();
         assert_eq!(idx1, 0);
         assert_eq!(rule1.pane, hho_types::RulePane::Joint);
 
-        let match2 = find_matching_rule(state, "NETFLIX");
+        let match2 = find_matching_rule(state, "NETFLIX", "");
         assert!(match2.is_some());
         let (idx2, rule2) = match2.unwrap();
         assert_eq!(idx2, 1);
         assert_eq!(rule2.pane, hho_types::RulePane::Personal);
 
-        let match3 = find_matching_rule(state, "GOOGLE");
+        let match3 = find_matching_rule(state, "GOOGLE", "");
         assert!(match3.is_none());
     }
 
@@ -643,7 +660,9 @@ mod tests {
     fn test_build_assign_modal_props_populates_correctly() {
         let state = AppState::new();
         state.auto_assign_rules.set(vec![hho_types::AutoAssignRule {
-            regex: "STARBUCKS.*".to_string(),
+            regex: Some("STARBUCKS.*".to_string()),
+            vendor_regex: None,
+            description_regex: None,
             pane: hho_types::RulePane::Joint,
             category_override: Some("Coffee".to_string()),
         }]);
@@ -656,6 +675,7 @@ mod tests {
                 id: None,
                 date: "2026-05-15".to_string(),
                 vendor: "STARBUCKS COFFEE".to_string(),
+                description: "Seattle branch".to_string(),
                 category: "Uncategorized".to_string(),
                 amount_cents: 100,
                 direction: crate::dto::Direction::Debit,
@@ -667,7 +687,9 @@ mod tests {
         // Verifies that properties populate correctly from matching rules.
         let props = build_assign_modal_props(state, &item);
         assert_eq!(props.preview_vendor, "STARBUCKS COFFEE");
-        assert_eq!(props.initial_regex, "STARBUCKS.*");
+        assert_eq!(props.preview_description, "Seattle branch");
+        assert_eq!(props.initial_vendor_regex, "STARBUCKS.*");
+        assert_eq!(props.initial_description_regex, "");
         assert_eq!(props.initial_pane, hho_types::RulePane::Joint);
         assert_eq!(props.initial_category_override, "Coffee");
     }
