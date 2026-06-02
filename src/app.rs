@@ -32,9 +32,6 @@ const SCALE_MAX: f32 = 20.0;
 const SCALE_STEP: f32 = 1.0;
 const SCALE_DEFAULT: f32 = 10.0;
 
-// Minimum interval between window-size saves (ms) — simple rate-limiter.
-const WIN_SAVE_INTERVAL_MS: f64 = 500.0;
-
 // IPC argument/result types live in the shared hho-types crate and are used
 // through the typed wrappers in `crate::ipc`.
 
@@ -193,6 +190,10 @@ pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor:
 
 // ── Layout restore ────────────────────────────────────────────────────────────
 
+thread_local! {
+    static LAST_SAVED_LAYOUT: std::cell::Cell<(f32, f32, f32, f32)> = const { std::cell::Cell::new((0.0, 0.0, 0.0, 0.0)) };
+}
+
 fn load_layout_from_config(state: AppState) {
     spawn_local(async move {
         if let Ok(layout) = ipc::get_layout(state).await {
@@ -200,6 +201,9 @@ fn load_layout_from_config(state: AppState) {
             state.right_width.set(layout.right_width);
             state.bottom_h.set(layout.bottom_h);
             state.debug_h.set(layout.debug_h);
+            LAST_SAVED_LAYOUT.with(|cell| {
+                cell.set((layout.left_width, layout.right_width, layout.bottom_h, layout.debug_h));
+            });
             state.log(format!(
                 "[Init] layout restored: left={:.0}px right={:.0}px bottom={:.0}px debug={:.0}px",
                 layout.left_width, layout.right_width, layout.bottom_h, layout.debug_h,
@@ -278,14 +282,26 @@ pub fn App() -> impl IntoView {
         let bot_h = state.bottom_h.get_untracked();
         let dbg_h = state.debug_h.get_untracked();
 
-        state.log(format!(
-            "[Drag] end {:?} → left={left_w:.0}px right={right_w:.0}px bottom={bot_h:.0}px debug={dbg_h:.0}px  (saving…)",
-            drag.target,
-        ));
-
-        spawn_local(async move {
-            ipc::save_layout(state, left_w, right_w, bot_h, dbg_h).await;
+        let changed = LAST_SAVED_LAYOUT.with(|cell| {
+            let last = cell.get();
+            if last != (left_w, right_w, bot_h, dbg_h) {
+                cell.set((left_w, right_w, bot_h, dbg_h));
+                true
+            } else {
+                false
+            }
         });
+
+        if changed {
+            state.log(format!(
+                "[Drag] end {:?} → left={left_w:.0}px right={right_w:.0}px bottom={bot_h:.0}px debug={dbg_h:.0}px  (saving…)",
+                drag.target,
+            ));
+
+            spawn_local(async move {
+                ipc::save_layout(state, left_w, right_w, bot_h, dbg_h).await;
+            });
+        }
     });
 
     // ── Global key-down handler ───────────────────────────────────────────────
@@ -448,38 +464,62 @@ pub fn App() -> impl IntoView {
         state.log(format!("{}  →  {}", prefix, detail));
     });
 
-    // ── Window resize → save dimensions (rate-limited) ────────────────────────
+    // ── Window resize → save dimensions (debounced) ──────────────────────────
     thread_local! {
-        static LAST_WIN_SAVE: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
+        static RESIZE_TIMEOUT: std::cell::RefCell<Option<leptos::prelude::TimeoutHandle>> = const { std::cell::RefCell::new(None) };
+        static LAST_SAVED_SIZE: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
     }
 
     let resize_handle = window_event_listener(ev::resize, move |_ev| {
-        let now = js_sys::Date::now();
-        let last = LAST_WIN_SAVE.with(|c| c.get());
-        if now - last < WIN_SAVE_INTERVAL_MS {
-            return;
-        }
-        LAST_WIN_SAVE.with(|c| c.set(now));
-
-        let Some(w) = web_sys::window() else { return };
-        let width = w
-            .inner_width()
-            .ok()
-            .and_then(|v| v.as_f64())
-            .unwrap_or(1024.0);
-        let height = w
-            .inner_height()
-            .ok()
-            .and_then(|v| v.as_f64())
-            .unwrap_or(700.0);
-
-        state.log(format!(
-            "[Window] resize → {width:.0}×{height:.0} (saving…)"
-        ));
-
-        spawn_local(async move {
-            ipc::save_window_size(state, width, height).await;
+        // Cancel any pending timeout to debounce the resize events
+        RESIZE_TIMEOUT.with(|cell| {
+            if let Some(handle) = cell.borrow_mut().take() {
+                handle.clear();
+            }
         });
+
+        let handle = leptos::prelude::set_timeout_with_handle(
+            move || {
+                let Some(w) = web_sys::window() else { return };
+                let width = w
+                    .outer_width()
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1024.0);
+                let height = w
+                    .outer_height()
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(700.0);
+
+                let changed = LAST_SAVED_SIZE.with(|cell| {
+                    let last = cell.get();
+                    if last != (width, height) {
+                        cell.set((width, height));
+                        true
+                    } else {
+                        false
+                    }
+                });
+
+                if changed {
+                    state.log(format!(
+                        "[Window] resize (debounced) → {width:.0}×{height:.0} (saving…)"
+                    ));
+
+                    spawn_local(async move {
+                        ipc::save_window_size(state, width, height).await;
+                    });
+                }
+            },
+            std::time::Duration::from_millis(200),
+        );
+
+        if let Ok(h) = handle {
+            RESIZE_TIMEOUT.with(|cell| {
+                *cell.borrow_mut() = Some(h);
+            });
+        }
     });
 
     on_cleanup(move || {
