@@ -290,7 +290,10 @@ body {
 .modal {
   width: min(90vw, 70rem);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: auto;
+  resize: both;
+  min-width: 30rem;
+  min-height: 20rem;
   background-color: #232323;
   border: 0.1rem solid rgba(245, 166, 35, 0.55);
   border-radius: 0.4rem;
@@ -679,7 +682,10 @@ body {
 .modal-container {
   width: min(90vw, 70rem);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: auto;
+  resize: both;
+  min-width: 30rem;
+  min-height: 20rem;
   background-color: #232323;
   border: 0.1rem solid rgba(245, 166, 35, 0.55);
   border-radius: 0.4rem;
