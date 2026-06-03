@@ -7,6 +7,32 @@ use hho_types::RulePane;
 use crate::logic::Item;
 use crate::components::draggable::use_draggable;
 
+fn parse_date_to_days(date_str: &str) -> Option<i32> {
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 { return None; }
+    let y: i32 = parts[0].parse().ok()?;
+    let m: i32 = parts[1].parse().ok()?;
+    let d: i32 = parts[2].parse().ok()?;
+
+    let months_days = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut days = y * 365 + d;
+    for i in 1..(m as usize) {
+        if i < months_days.len() {
+            days += months_days[i];
+        }
+    }
+    days += y / 4 - y / 100 + y / 400;
+    Some(days)
+}
+
+fn date_diff_days(d1: &str, d2: &str) -> i32 {
+    if let (Some(days1), Some(days2)) = (parse_date_to_days(d1), parse_date_to_days(d2)) {
+        (days1 - days2).abs()
+    } else {
+        999
+    }
+}
+
 #[derive(Clone, Debug)]
 struct SplitDraftRow {
     amount_input: RwSignal<String>,
@@ -27,15 +53,50 @@ where
     S: Fn(Vec<(i64, String, RulePane)>) + 'static + Send + Sync + Clone,
     C: Fn() + 'static + Send + Sync + Clone,
 {
+    let state = use_context::<crate::state::AppState>().expect("AppState missing from context");
+    let amazon_orders = state.amazon_orders;
+
     // Extract transaction details for template rendering.
     let original_desc = item.txn.description.clone();
     let original_vendor = item.txn.vendor.clone();
     let original_total_cents = item.txn.amount_cents;
+    let original_date = item.txn.date.clone();
     
     // Parse target pane to seed draft row destinations.
     let original_pane = match item.txn.manual_pane {
         Some(pane) => pane,
         None => RulePane::Unassigned,
+    };
+
+    let is_amazon_txn = {
+        let v_lower = original_vendor.to_lowercase();
+        let n_lower = item.txn.nickname.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
+        v_lower.contains("amazon") || v_lower.contains("amzn") || n_lower.contains("amazon") || n_lower.contains("amzn")
+    };
+
+    let matched_orders = {
+        let original_date = original_date.clone();
+        Memo::new(move |_| {
+            let orders = amazon_orders.get();
+            let txn_date = original_date.clone();
+            let txn_amount = original_total_cents.abs();
+            
+            let mut candidates = Vec::new();
+            for order in orders {
+                let diff = date_diff_days(&order.date, &txn_date);
+                if diff <= 3 {
+                    let score = if order.total_cents == txn_amount { 0 } else { 1 };
+                    candidates.push((score, diff, order));
+                }
+            }
+            candidates.sort_by(|a, b| {
+                match a.0.cmp(&b.0) {
+                    std::cmp::Ordering::Equal => a.1.cmp(&b.1),
+                    other => other,
+                }
+            });
+            candidates.into_iter().map(|c| c.2).collect::<Vec<_>>()
+        })
     };
 
     // Instantiate two initial draft rows to represent the default split setup.
@@ -64,7 +125,7 @@ where
     // Determine correctness of split validation state.
     let is_valid = Memo::new(move |_| {
         let rows = draft_rows.get();
-        if rows.len() < 2 {
+        if rows.is_empty() {
             return false;
         }
 
@@ -146,6 +207,121 @@ where
             >
                 <h2 on:mousedown=on_drag_start>"Split Transaction"</h2>
 
+                {let original_date = original_date.clone();
+                let original_pane = original_pane;
+                let original_total_cents = original_total_cents;
+                let state = state;
+                move || is_amazon_txn.then(|| {
+                    let orders = amazon_orders.get();
+                    if orders.is_empty() {
+                        let state = state;
+                        view! {
+                            <div class="amazon-import-panel">
+                                <div class="amazon-import-info">
+                                    "Amazon purchase detected. Import Amazon order history CSV to auto-fill items."
+                                </div>
+                                <button
+                                    type="button"
+                                    class="btn btn-primary btn-import-amazon"
+                                    on:click=move |_| {
+                                        wasm_bindgen_futures::spawn_local(async move {
+                                            state.log("[Amazon] importing Amazon order history CSV...".to_string());
+                                            match crate::ipc::pick_amazon_orders(state).await {
+                                                Ok(orders) => {
+                                                    if !orders.is_empty() {
+                                                        state.log(format!("[Amazon] loaded {} orders", orders.len()));
+                                                        state.amazon_orders.set(orders);
+                                                    } else {
+                                                        state.log("[Amazon] import cancelled or empty".to_string());
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    state.log(format!("[Amazon] import failed: {e}"));
+                                                }
+                                            }
+                                        });
+                                    }
+                                >
+                                    "Import Amazon CSV"
+                                </button>
+                            </div>
+                        }.into_any()
+                    } else {
+                        let candidates = matched_orders.get();
+                        let original_date_label = original_date.clone();
+                        view! {
+                            <div class="amazon-matched-panel">
+                                <div class="amazon-matched-title">
+                                    {format!("Matched Amazon Purchases (Found {})", candidates.len())}
+                                </div>
+                                {if candidates.is_empty() {
+                                    let original_date_label = original_date_label.clone();
+                                    view! {
+                                        <div class="amazon-no-matches">
+                                            "No matching Amazon orders found near date " {original_date_label}
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="amazon-order-list">
+                                            {candidates.into_iter().map(|order| {
+                                                let order_clone = order.clone();
+                                                let is_exact_match = order.total_cents == original_total_cents.abs();
+                                                let original_total_cents = original_total_cents;
+                                                
+                                                let on_fill_click = move |_| {
+                                                    let order = order_clone.clone();
+                                                    draft_rows.update(|rows| {
+                                                        rows.clear();
+                                                        let items_count = order.items.len();
+                                                        for item_name in &order.items {
+                                                            let initial_amt = if items_count == 1 {
+                                                                hho_types::format_dollars(original_total_cents)
+                                                            } else {
+                                                                "".to_string()
+                                                            };
+                                                            rows.push(SplitDraftRow {
+                                                                amount_input: RwSignal::new(initial_amt),
+                                                                description: RwSignal::new(item_name.clone()),
+                                                                target_pane: RwSignal::new(original_pane),
+                                                            });
+                                                        }
+                                                    });
+                                                };
+
+                                                view! {
+                                                    <div class="amazon-order-card">
+                                                        <div class="amazon-order-header">
+                                                            <span class="amazon-order-id">"Order: " {order.order_id.clone()}</span>
+                                                            <span>{order.date.clone()}</span>
+                                                            <strong>{hho_types::format_dollars(order.total_cents)}</strong>
+                                                            {is_exact_match.then(|| view! {
+                                                                <span class="amazon-order-badge">"✓ Exact Amount Match"</span>
+                                                            })}
+                                                        </div>
+                                                        <ul class="amazon-order-items">
+                                                            {order.items.iter().map(|it| view! { <li>{it.clone()}</li> }).collect_view()}
+                                                        </ul>
+                                                        <div class="amazon-order-footer">
+                                                            <button
+                                                                type="button"
+                                                                class="btn btn-fill-order"
+                                                                on:click=on_fill_click
+                                                            >
+                                                                "Auto-Fill from Order"
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                    }.into_any()
+                                }}
+                            </div>
+                        }.into_any()
+                    }
+                })}
+
                 // Original Transaction Reference Details Panel
                 <div class="split-reference-panel">
                     <div class="ref-title">"Original Transaction"</div>
@@ -156,7 +332,7 @@ where
                         </div>
                         <div>
                             <span class="ref-label">"Date:"</span>
-                            <span class="ref-val">{item.txn.date.clone()}</span>
+                            <span class="ref-val">{original_date.clone()}</span>
                         </div>
                         <div>
                             <span class="ref-label">"Total:"</span>

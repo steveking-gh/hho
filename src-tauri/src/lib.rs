@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-use hho_types::{AutoAssignRule, Institution, LayoutConfig, NicknameRule, OpenResult, Transaction};
+use hho_types::{AmazonOrder, AutoAssignRule, Institution, LayoutConfig, NicknameRule, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -202,11 +202,12 @@ fn finalize_open(state: &ConfigState, path: PathBuf) -> Result<OpenResult, Strin
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
-#[tauri::command]
-async fn pick_csv(
-    window: tauri::Window,
-    state: State<'_, ConfigState>,
-) -> Result<OpenResult, String> {
+fn pick_file(
+    window: &tauri::Window,
+    state: &ConfigState,
+    filter_name: &str,
+    extensions: &[&str],
+) -> Result<Option<PathBuf>, String> {
     let start_dir: Option<PathBuf> = {
         let cfg = state.config.lock().unwrap();
         cfg.last_opened_dir
@@ -216,25 +217,34 @@ async fn pick_csv(
             .or_else(dirs::home_dir)
     };
 
-    // Associates file dialog with calling window as parent owner.
-    // Prevents duplicate dialog instances and keeps dialog in focus.
     let mut builder = window
         .dialog()
         .file()
-        .set_parent(&window)
-        .add_filter("CSV files", &["csv", "CSV"]);
+        .set_parent(window)
+        .add_filter(filter_name, extensions);
     if let Some(dir) = start_dir {
         builder = builder.set_directory(dir);
     }
 
     let Some(fp) = builder.blocking_pick_file() else {
-        return Ok(OpenResult::Cancelled);
+        return Ok(None);
     };
     let path = fp
         .as_path()
         .ok_or_else(|| "dialog returned a URL, not a file path".to_string())?
         .to_path_buf();
-    finalize_open(&state, path)
+    Ok(Some(path))
+}
+
+#[tauri::command]
+async fn pick_csv(
+    window: tauri::Window,
+    state: State<'_, ConfigState>,
+) -> Result<OpenResult, String> {
+    match pick_file(&window, &state, "CSV files", &["csv", "CSV"])? {
+        Some(path) => finalize_open(&state, path),
+        None => Ok(OpenResult::Cancelled),
+    }
 }
 
 #[tauri::command]
@@ -359,6 +369,73 @@ fn save_nickname_rules(rules: Vec<NicknameRule>, state: State<'_, ConfigState>) 
     let mut cfg = state.config.lock().unwrap();
     cfg.nickname_rules = rules;
     save_config(&cfg);
+}
+
+#[tauri::command]
+async fn pick_amazon_orders(
+    window: tauri::Window,
+    state: State<'_, ConfigState>,
+) -> Result<Vec<AmazonOrder>, String> {
+    let path = match pick_file(&window, &state, "CSV files", &["csv", "CSV"])? {
+        Some(p) => p,
+        None => return Ok(vec![]),
+    };
+
+    let (headers, rows) = read_csv_table(&path)?;
+
+    let order_id_idx = headers
+        .iter()
+        .position(|h| h.to_lowercase() == "order id")
+        .ok_or_else(|| "missing 'order id' column in Amazon CSV".to_string())?;
+    let date_idx = headers
+        .iter()
+        .position(|h| h.to_lowercase() == "date")
+        .ok_or_else(|| "missing 'date' column in Amazon CSV".to_string())?;
+    let total_idx = headers
+        .iter()
+        .position(|h| h.to_lowercase() == "total")
+        .ok_or_else(|| "missing 'total' column in Amazon CSV".to_string())?;
+    let items_idx = headers
+        .iter()
+        .position(|h| h.to_lowercase() == "items")
+        .ok_or_else(|| "missing 'items' column in Amazon CSV".to_string())?;
+
+    let mut orders = Vec::new();
+    for row in rows {
+        if row.len() <= order_id_idx
+            || row.len() <= date_idx
+            || row.len() <= total_idx
+            || row.len() <= items_idx
+        {
+            continue;
+        }
+
+        let order_id = row[order_id_idx].trim().to_string();
+        let date = row[date_idx].trim().to_string();
+        let total_str = &row[total_idx];
+        let items_str = &row[items_idx];
+
+        if order_id.is_empty() || date.is_empty() {
+            continue;
+        }
+
+        let total_cents = hho_types::parse_amount_cents(total_str).unwrap_or(0);
+
+        let items: Vec<String> = items_str
+            .split(';')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        orders.push(AmazonOrder {
+            order_id,
+            date,
+            total_cents,
+            items,
+        });
+    }
+
+    Ok(orders)
 }
 
 /// Saves transactions of a selected pane to a CSV file.
@@ -563,6 +640,7 @@ pub fn run() {
             save_pane_transactions,
             get_nickname_rules,
             save_nickname_rules,
+            pick_amazon_orders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -895,6 +973,66 @@ TOTAL,-282.37
 Travel,-286.97
 ";
         assert_eq!(contents_lf, expected);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_parse_amazon_orders_csv_format() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_amazon_orders.csv");
+
+        let csv_content = "\
+order id,order url,items,to,date,total,shipping,shipping_refund,gift,tax,refund,payments
+113-3983825-0231454,https://amazon.com/url,\"OXO Good Grips; YIMITEE Brush; 1/2 Teaspoon; \",Steve King,2026-06-01,42.28,0,,,0,,Prime Visa
+113-8688736-7549016,https://amazon.com/url,Golf Ball Retriever; ,Steve King,2026-05-24,0.00,0,,,0,,Prime Visa
+113-3226450-8453018,https://amazon.com/url,Door Shoe Organizer; ,Steve King,2026-05-18,29.99,0,,,0,,Prime Visa
+";
+        std::fs::write(&path, csv_content).unwrap();
+
+        let (headers, rows) = read_csv_table(&path).unwrap();
+        assert_eq!(headers.len(), 12);
+        assert_eq!(rows.len(), 3);
+
+        let order_id_idx = headers.iter().position(|h| h.to_lowercase() == "order id").unwrap();
+        let date_idx = headers.iter().position(|h| h.to_lowercase() == "date").unwrap();
+        let total_idx = headers.iter().position(|h| h.to_lowercase() == "total").unwrap();
+        let items_idx = headers.iter().position(|h| h.to_lowercase() == "items").unwrap();
+
+        let mut orders = Vec::new();
+        for row in rows {
+            let order_id = row[order_id_idx].trim().to_string();
+            let date = row[date_idx].trim().to_string();
+            let total_cents = hho_types::parse_amount_cents(&row[total_idx]).unwrap_or(0);
+            let items: Vec<String> = row[items_idx]
+                .split(';')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            orders.push(AmazonOrder {
+                order_id,
+                date,
+                total_cents,
+                items,
+            });
+        }
+
+        assert_eq!(orders.len(), 3);
+        assert_eq!(orders[0].order_id, "113-3983825-0231454");
+        assert_eq!(orders[0].date, "2026-06-01");
+        assert_eq!(orders[0].total_cents, 4228);
+        assert_eq!(orders[0].items, vec![
+            "OXO Good Grips".to_string(),
+            "YIMITEE Brush".to_string(),
+            "1/2 Teaspoon".to_string()
+        ]);
+
+        assert_eq!(orders[1].total_cents, 0);
+        assert_eq!(orders[1].items, vec!["Golf Ball Retriever".to_string()]);
+
+        assert_eq!(orders[2].total_cents, 2999);
+        assert_eq!(orders[2].items, vec!["Door Shoe Organizer".to_string()]);
 
         let _ = std::fs::remove_file(&path);
     }

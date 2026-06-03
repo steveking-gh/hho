@@ -96,6 +96,8 @@ pub struct AppState {
     pub editing_transaction_item: RwSignal<Option<Item>>,
     // State signal controlling the transaction splitting modal.
     pub split_transaction_item: RwSignal<Option<Item>>,
+    // Cached Amazon orders loaded via contextual CSV import.
+    pub amazon_orders: RwSignal<Vec<hho_types::AmazonOrder>>,
 }
 
 impl AppState {
@@ -139,6 +141,7 @@ impl AppState {
             show_debug_log: RwSignal::new(false),
             editing_transaction_item: RwSignal::new(None),
             split_transaction_item: RwSignal::new(None),
+            amazon_orders: RwSignal::new(vec![]),
         }
     }
 

@@ -248,6 +248,11 @@ pub async fn save_pane_transactions(
     call(state, "save_pane_transactions", &args).await
 }
 
+/// Triggers a file picker to load and parse an Amazon Order History CSV.
+pub async fn pick_amazon_orders(state: AppState) -> Result<Vec<hho_types::AmazonOrder>, String> {
+    call_unit(state, "pick_amazon_orders").await
+}
+
 /// Closes the application cleanly.
 pub async fn exit_app(state: AppState) {
     call_unit_discard(state, "exit_app").await;

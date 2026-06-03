@@ -1438,3 +1438,118 @@ body {
   color: #38bdf8;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Amazon order matching & split import
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.amazon-import-panel {
+  background-color: rgba(245, 166, 35, 0.06);
+  border: 1px dashed rgba(245, 166, 35, 0.3);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.amazon-import-info {
+  font-size: 0.9em;
+  color: #d8d8d8;
+}
+
+.btn-import-amazon {
+  font-size: 0.85em;
+  padding: 0.4rem 0.8rem;
+}
+
+.amazon-matched-panel {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.amazon-matched-title {
+  font-size: 0.95em;
+  font-weight: bold;
+  margin-bottom: 0.8rem;
+  color: #fbbf24;
+}
+
+.amazon-no-matches {
+  font-size: 0.85em;
+  color: #888;
+  font-style: italic;
+}
+
+.amazon-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.amazon-order-card {
+  background-color: #1a1a1a;
+  border: 1px solid #2d2d2d;
+  border-radius: 4px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.amazon-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85em;
+  color: #aaa;
+}
+
+.amazon-order-id {
+  font-family: monospace;
+}
+
+.amazon-order-badge {
+  background-color: rgba(78, 201, 78, 0.15);
+  color: #4ec94e;
+  border: 1px solid rgba(78, 201, 78, 0.3);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.8em;
+  margin-left: 0.4rem;
+}
+
+.amazon-order-items {
+  margin: 0.2rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.85em;
+  color: #d8d8d8;
+  list-style-type: disc;
+}
+
+.amazon-order-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+
+.btn-fill-order {
+  font-size: 0.8em;
+  padding: 0.3rem 0.6rem;
+  background-color: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-fill-order:hover {
+  background-color: rgba(56, 189, 248, 0.2);
+}
+
