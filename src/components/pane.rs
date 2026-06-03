@@ -213,7 +213,29 @@ pub fn Pane(
                                          ));
                                      }
                                 >
-                                    <span class="row-label">{label}</span>
+                                    <span class="row-label">
+                                        {let parts: Vec<String> = label.split(" │ ").map(|s| s.to_string()).collect();
+                                        if parts.len() == 5 {
+                                            let p0 = parts[0].clone();
+                                            let p1 = parts[1].clone();
+                                            let p2 = parts[2].clone();
+                                            let p3 = parts[3].clone();
+                                            let p4 = parts[4].clone();
+                                            let is_nickname = item.txn.nickname.is_some();
+                                            view! {
+                                                {p0} " │ "
+                                                <span class:nickname-applied=is_nickname>
+                                                    {p1}
+                                                </span>
+                                                " │ "
+                                                {p2} " │ "
+                                                {p3} " │ "
+                                                {p4}
+                                            }.into_any()
+                                        } else {
+                                            label.clone().into_any()
+                                        }}
+                                    </span>
                                     {move || (pane_id == ActivePane::Middle).then(|| {
                                         let item_edit = item_clone1.clone();
                                         let item_rule = item_clone2.clone();

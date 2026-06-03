@@ -168,6 +168,10 @@ body {
   white-space: nowrap;
 }
 
+.nickname-applied {
+  color: #fbbf24;
+}
+
 .row-actions {
   display: flex;
   gap: 0.4rem;
