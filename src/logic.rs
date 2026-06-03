@@ -225,9 +225,10 @@ pub fn escape_regex(input: &str) -> String {
 pub fn format_txn(t: &hho_types::Transaction) -> String {
     let amount =
         hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
+    let display_vendor = t.nickname.as_deref().unwrap_or(&t.vendor);
     format!(
         "{} │ {} │ {} │ {} │ {}",
-        t.date, t.vendor, t.description, amount, t.category
+        t.date, display_vendor, t.description, amount, t.category
     )
 }
 
@@ -280,16 +281,33 @@ impl CompiledRule {
     }
 }
 
+/// Compiled cache of a nickname rule for fast regex matching.
+pub struct CompiledNicknameRule {
+    pub re: regex::Regex,
+    pub nickname: String,
+}
+
 /// Routes transactions into destination panes based on auto-assign rules.
 /// Returns a tuple of item lists corresponding to the Left (Joint), Middle (Unassigned),
 /// Right (Personal), and Bottom (Ignored) panes respectively.
 pub fn classify_transactions(
     txns: Vec<hho_types::Transaction>,
     rules: &[hho_types::AutoAssignRule],
+    nickname_rules: &[hho_types::NicknameRule],
 ) -> (Vec<Item>, Vec<Item>, Vec<Item>, Vec<Item>) {
     let compiled_rules: Vec<CompiledRule> = rules
         .iter()
         .filter_map(CompiledRule::new)
+        .collect();
+
+    let compiled_nicknames: Vec<CompiledNicknameRule> = nickname_rules
+        .iter()
+        .filter_map(|r| {
+            compile_rule(&r.regex).ok().map(|re| CompiledNicknameRule {
+                re,
+                nickname: r.nickname.clone(),
+            })
+        })
         .collect();
 
     let mut left = vec![];
@@ -329,10 +347,19 @@ pub fn classify_transactions(
             t.category.clone()
         };
 
+        let mut matched_nickname = None;
+        for rule in &compiled_nicknames {
+            if rule.re.is_match(&t.vendor) {
+                matched_nickname = Some(rule.nickname.clone());
+                break;
+            }
+        }
+
         let txn = hho_types::Transaction {
             id: t.id,
             date: t.date.clone(),
             vendor: t.vendor.clone(),
+            nickname: matched_nickname,
             description: t.description.clone(),
             category,
             amount_cents: t.amount_cents,
@@ -719,7 +746,7 @@ mod tests {
             },
         ];
 
-        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules, &[]);
 
         // Verify Starbucks matches the rule and goes to Joint (left) with overridden category
         assert_eq!(left.len(), 1);
@@ -804,7 +831,7 @@ mod tests {
             },
         ];
 
-        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules, &[]);
 
         assert_eq!(left.len(), 1);
         assert_eq!(left[0].txn.category, "Coffee");
@@ -889,7 +916,7 @@ mod tests {
             },
         ];
 
-        let (left, middle, right, bottom) = classify_transactions(txns, &rules);
+        let (left, middle, right, bottom) = classify_transactions(txns, &rules, &[]);
 
         // Starbucks matched Rule 1 (Vendor only) and goes to Joint (left)
         assert_eq!(left.len(), 1);
@@ -945,5 +972,75 @@ mod tests {
         // Assert formatted output containing empty description column.
         let label2 = format_txn(&txn_no_desc);
         assert_eq!(label2, "2026-05-16 │ NETFLIX │  │ -$15.99 │ Streaming");
+    }
+
+    #[test]
+    fn test_format_txn_output_with_nickname() {
+        use hho_types::{Direction, Transaction};
+
+        let txn_with_nickname = Transaction {
+            id: None,
+            date: "2026-05-15".to_string(),
+            vendor: "COSTCO WHSL #0009".to_string(),
+            nickname: Some("Costco".to_string()),
+            description: "Groceries".to_string(),
+            category: "Food".to_string(),
+            amount_cents: 12000,
+            direction: Direction::Debit,
+            ..Default::default()
+        };
+
+        let label = format_txn(&txn_with_nickname);
+        assert_eq!(label, "2026-05-15 │ Costco │ Groceries │ -$120.00 │ Food");
+    }
+
+    #[test]
+    fn test_classify_transactions_with_nickname_rules() {
+        use hho_types::{Direction, NicknameRule, Transaction};
+
+        let txns = vec![
+            Transaction {
+                id: None,
+                date: "2026-05-15".to_string(),
+                vendor: "COSTCO WHSL #0009".to_string(),
+                category: "Food".to_string(),
+                amount_cents: 12000,
+                direction: Direction::Debit,
+                ..Default::default()
+            },
+            Transaction {
+                id: None,
+                date: "2026-05-16".to_string(),
+                vendor: "NETFLIX US CARD".to_string(),
+                category: "Streaming".to_string(),
+                amount_cents: 1599,
+                direction: Direction::Debit,
+                ..Default::default()
+            },
+        ];
+
+        let nickname_rules = vec![
+            NicknameRule {
+                regex: "COSTCO.*".to_string(),
+                nickname: "Costco".to_string(),
+            },
+            NicknameRule {
+                regex: "NETFLIX.*".to_string(),
+                nickname: "Netflix".to_string(),
+            },
+        ];
+
+        let (_, middle, _, _) = classify_transactions(txns, &[], &nickname_rules);
+
+        assert_eq!(middle.len(), 2);
+
+        // Verify nicknames are resolved and original vendor names are preserved.
+        assert_eq!(middle[0].txn.nickname, Some("Costco".to_string()));
+        assert_eq!(middle[0].txn.vendor, "COSTCO WHSL #0009");
+        assert_eq!(middle[0].label, "2026-05-15 │ Costco │  │ -$120.00 │ Food");
+
+        assert_eq!(middle[1].txn.nickname, Some("Netflix".to_string()));
+        assert_eq!(middle[1].txn.vendor, "NETFLIX US CARD");
+        assert_eq!(middle[1].label, "2026-05-16 │ Netflix │  │ -$15.99 │ Streaming");
     }
 }

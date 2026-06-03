@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-use hho_types::{AutoAssignRule, Institution, LayoutConfig, OpenResult, Transaction};
+use hho_types::{AutoAssignRule, Institution, LayoutConfig, NicknameRule, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,9 @@ struct UserConfig {
 
     #[serde(default)]
     auto_assign_rules: Vec<AutoAssignRule>,
+
+    #[serde(default)]
+    nickname_rules: Vec<NicknameRule>,
 }
 
 // ── Config file helpers ───────────────────────────────────────────────────────
@@ -343,6 +346,21 @@ fn save_auto_assign_rules(rules: Vec<AutoAssignRule>, state: State<'_, ConfigSta
     save_config(&cfg);
 }
 
+/// Returns the persisted list of vendor nickname rules.
+#[tauri::command]
+fn get_nickname_rules(state: State<'_, ConfigState>) -> Vec<NicknameRule> {
+    let cfg = state.config.lock().unwrap();
+    cfg.nickname_rules.clone()
+}
+
+/// Replaces the persisted list of vendor nickname rules and writes the updated configuration to disk.
+#[tauri::command]
+fn save_nickname_rules(rules: Vec<NicknameRule>, state: State<'_, ConfigState>) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.nickname_rules = rules;
+    save_config(&cfg);
+}
+
 /// Saves transactions of a selected pane to a CSV file.
 /// Presents a native file save dialog pre-populated with a default name.
 /// Appends a blank row and total summary row to the written CSV file.
@@ -402,7 +420,8 @@ fn write_pane_csv(path: &Path, transactions: &[Transaction]) -> Result<(), Strin
 
     for t in transactions {
         let amount_str = hho_types::format_cents(hho_types::net_cents(t.amount_cents, t.direction));
-        wtr.write_record([&t.date, &t.vendor, &t.description, &amount_str, &t.category])
+        let display_vendor = t.nickname.as_ref().unwrap_or(&t.vendor);
+        wtr.write_record([&t.date, display_vendor, &t.description, &amount_str, &t.category])
             .map_err(|e| format!("failed to write record: {e}"))?;
     }
 
@@ -542,6 +561,8 @@ pub fn run() {
             get_auto_assign_rules,
             save_auto_assign_rules,
             save_pane_transactions,
+            get_nickname_rules,
+            save_nickname_rules,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -599,6 +620,7 @@ mod tests {
             window_y: Some(150.0),
             institutions: vec![],
             auto_assign_rules: vec![],
+            nickname_rules: vec![],
         };
         let toml_str = toml::to_string_pretty(&original).unwrap();
         let recovered: UserConfig = toml::from_str(&toml_str).unwrap();
@@ -649,6 +671,7 @@ mod tests {
             window_x: None,
             window_y: None,
             auto_assign_rules: vec![],
+            nickname_rules: vec![],
             institutions: vec![hho_types::Institution {
                 name: "Chase".into(),
                 fingerprint: "date,description,amount".into(),
@@ -683,6 +706,7 @@ mod tests {
             window_x: None,
             window_y: None,
             institutions: vec![],
+            nickname_rules: vec![],
             auto_assign_rules: vec![
                 AutoAssignRule {
                     regex: Some("STARBUCKS".to_string()),
@@ -820,6 +844,7 @@ mod tests {
                 id: None,
                 date: "2026-05-18".to_string(),
                 vendor: "BUDGET RENT A CAR".to_string(),
+                nickname: Some("Budget".to_string()),
                 description: "Car rental memo".to_string(),
                 category: "Travel".to_string(),
                 amount_cents: 28697,
@@ -831,6 +856,7 @@ mod tests {
                 id: None,
                 date: "2026-05-19".to_string(),
                 vendor: "STARBUCKS".to_string(),
+                nickname: None,
                 description: "".to_string(),
                 category: "".to_string(),
                 amount_cents: 540,
@@ -842,6 +868,7 @@ mod tests {
                 id: None,
                 date: "2026-05-20".to_string(),
                 vendor: "CREDIT REFUND".to_string(),
+                nickname: None,
                 description: "Refund details".to_string(),
                 category: "Refund, Special".to_string(),
                 amount_cents: 1000,
@@ -858,7 +885,7 @@ mod tests {
         let contents_lf = contents.replace("\r\n", "\n");
         let expected = "\
 Date,Vendor,Description,Amount,Category
-2026-05-18,BUDGET RENT A CAR,Car rental memo,-286.97,Travel
+2026-05-18,Budget,Car rental memo,-286.97,Travel
 2026-05-19,STARBUCKS,,-5.40,
 2026-05-20,CREDIT REFUND,Refund details,10.00,\"Refund, Special\"
 

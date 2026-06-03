@@ -221,6 +221,16 @@ pub async fn save_auto_assign_rules(state: AppState, rules: Vec<AutoAssignRule>)
     call(state, "save_auto_assign_rules", &SaveAutoAssignRulesArgs { rules }).await
 }
 
+/// Fetches the vendor nickname rules.
+pub async fn get_nickname_rules(state: AppState) -> Result<Vec<hho_types::NicknameRule>, String> {
+    call_unit(state, "get_nickname_rules").await
+}
+
+/// Saves the complete list of vendor nickname rules.
+pub async fn save_nickname_rules(state: AppState, rules: Vec<hho_types::NicknameRule>) -> Result<(), String> {
+    call(state, "save_nickname_rules", &hho_types::SaveNicknameRulesArgs { rules }).await
+}
+
 /// Saves transactions in a selected pane to a CSV file.
 pub async fn save_pane_transactions(
     state: AppState,

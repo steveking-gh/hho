@@ -83,6 +83,9 @@ pub struct AppState {
     pub auto_assign_rules: RwSignal<Vec<hho_types::AutoAssignRule>>,
     pub assign_modal_item: RwSignal<Option<Item>>,
     pub is_rules_modal_open: RwSignal<bool>,
+    pub nickname_rules: RwSignal<Vec<hho_types::NicknameRule>>,
+    pub nickname_modal_item: RwSignal<Option<Item>>,
+    pub is_nickname_manager_open: RwSignal<bool>,
     // State signal controlling the manual transaction creation modal.
     pub is_create_transaction_modal_open: RwSignal<bool>,
     // State signal representing the active print target pane.
@@ -128,6 +131,9 @@ impl AppState {
             auto_assign_rules: RwSignal::new(vec![]),
             assign_modal_item: RwSignal::new(None),
             is_rules_modal_open: RwSignal::new(false),
+            nickname_rules: RwSignal::new(vec![]),
+            nickname_modal_item: RwSignal::new(None),
+            is_nickname_manager_open: RwSignal::new(false),
             is_create_transaction_modal_open: RwSignal::new(false),
             print_target: RwSignal::new(None),
             show_debug_log: RwSignal::new(false),
@@ -140,6 +146,8 @@ impl AppState {
     pub fn any_modal_open(self) -> bool {
         self.pending_mapping.get_untracked().is_some()
             || self.assign_modal_item.get_untracked().is_some()
+            || self.nickname_modal_item.get_untracked().is_some()
+            || self.is_nickname_manager_open.get_untracked()
             || self.editing_transaction_item.get_untracked().is_some()
             || self.split_transaction_item.get_untracked().is_some()
             || self.is_month_modal_open.get_untracked()
@@ -281,7 +289,8 @@ impl AppState {
         filtered.sort_by(|a, b| a.date.cmp(&b.date));
 
         let rules = self.auto_assign_rules.get_untracked();
-        let (left, middle, right, bottom) = classify_transactions(filtered, &rules);
+        let nickname_rules = self.nickname_rules.get_untracked();
+        let (left, middle, right, bottom) = classify_transactions(filtered, &rules, &nickname_rules);
 
         let left_len = left.len();
         let middle_len = middle.len();

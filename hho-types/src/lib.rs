@@ -76,6 +76,8 @@ pub struct Transaction {
     pub date: String, // canonical "YYYY-MM-DD"
     pub vendor: String,
     #[serde(default)]
+    pub nickname: Option<String>,
+    #[serde(default)]
     pub description: String,
     pub category: String,
     pub amount_cents: i64, // magnitude, always >= 0
@@ -320,6 +322,20 @@ pub struct SaveWindowSizeArgs {
 #[serde(rename_all = "camelCase")]
 pub struct SaveAutoAssignRulesArgs {
     pub rules: Vec<AutoAssignRule>,
+}
+
+/// Represents a rule mapping a vendor name pattern to a simplified nickname.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct NicknameRule {
+    pub regex: String,
+    pub nickname: String,
+}
+
+/// Represents arguments for the `save_nickname_rules` command.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveNicknameRulesArgs {
+    pub rules: Vec<NicknameRule>,
 }
 
 /// Represents arguments for the `save_pane_transactions` command.

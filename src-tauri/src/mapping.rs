@@ -159,6 +159,7 @@ pub fn parse_row(inst: &Institution, row: &[String]) -> Option<Transaction> {
         id: None,
         date,
         vendor,
+        nickname: None,
         description,
         category,
         amount_cents,

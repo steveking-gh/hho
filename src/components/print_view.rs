@@ -40,7 +40,7 @@ pub fn PrintView() -> impl IntoView {
             let rows = items.iter().map(|item| {
                 let net = hho_types::net_cents(item.txn.amount_cents, item.txn.direction);
                 let date = item.txn.date.clone();
-                let vendor = item.txn.vendor.clone();
+                let vendor = item.txn.nickname.clone().unwrap_or_else(|| item.txn.vendor.clone());
                 let category = item.txn.category.clone();
                 view! {
                     <tr>

@@ -193,6 +193,7 @@ pub fn Pane(
                             let item_clone1 = item.clone();
                             let item_clone2 = item.clone();
                             let item_clone3 = item.clone();
+                            let item_clone4 = item.clone();
                             view! {
                                 <div
                                     class="row-item"
@@ -217,6 +218,7 @@ pub fn Pane(
                                         let item_edit = item_clone1.clone();
                                         let item_rule = item_clone2.clone();
                                         let item_split = item_clone3.clone();
+                                        let item_nickname = item_clone4.clone();
                                         view! {
                                             <div class="row-actions">
                                                 <button
@@ -261,6 +263,20 @@ pub fn Pane(
                                                 >
                                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn nickname-btn"
+                                                    title="Assign vendor nickname (N)"
+                                                    on:click=move |e| {
+                                                        e.stop_propagation();
+                                                        state.nickname_modal_item.set(Some(item_nickname.clone()));
+                                                    }
+                                                >
+                                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                                                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
                                                     </svg>
                                                 </button>
                                             </div>

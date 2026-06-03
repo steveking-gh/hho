@@ -20,6 +20,8 @@ use crate::components::{
     rules_modal::RulesModal,
     split_transaction_modal::SplitTransactionModal,
     transaction_editor_modal::TransactionEditorModal,
+    nickname_editor_modal::NicknameEditorModal,
+    nickname_rules_modal::NicknameRulesModal,
 };
 use crate::dto::{OpenResult, PendingMapping};
 use crate::ipc;
@@ -189,6 +191,37 @@ pub async fn save_rule(state: AppState, rule: hho_types::AutoAssignRule, vendor:
     state.assign_modal_item.set(None);
 }
 
+/// Finds an existing nickname rule matching the regex pattern.
+fn find_nickname_rule(state: AppState, regex: &str) -> Option<usize> {
+    let rules = state.nickname_rules.get_untracked();
+    rules.iter().position(|r| r.regex == regex)
+}
+
+/// Saves a nickname rule to the persistent configuration.
+pub async fn save_nickname_rule(state: AppState, rule: hho_types::NicknameRule) {
+    let mut rules = state.nickname_rules.get_untracked();
+    if let Some(idx) = find_nickname_rule(state, &rule.regex) {
+        rules[idx] = rule.clone();
+    } else {
+        rules.push(rule.clone());
+    }
+
+    state.log(format!(
+        "[Nicknames] saving {} nickname rules: regex=\"{}\" nickname=\"{}\"",
+        rules.len(),
+        rule.regex,
+        rule.nickname
+    ));
+
+    if let Err(e) = crate::ipc::save_nickname_rules(state, rules.clone()).await {
+        state.log(format!("[Nicknames] failed to save nickname rules list: {e}"));
+    } else {
+        state.nickname_rules.set(rules);
+        state.apply_month_filter();
+    }
+    state.nickname_modal_item.set(None);
+}
+
 // ── Layout restore ────────────────────────────────────────────────────────────
 
 thread_local! {
@@ -228,6 +261,21 @@ fn load_rules_from_config(state: AppState) {
     });
 }
 
+fn load_nicknames_from_config(state: AppState) {
+    spawn_local(async move {
+        if let Ok(rules) = ipc::get_nickname_rules(state).await {
+            state.nickname_rules.set(rules);
+            state.log(format!(
+                "[Init] nickname rules restored: count={}",
+                state.nickname_rules.get_untracked().len()
+            ));
+            if !state.raw_transactions.get_untracked().is_empty() {
+                state.apply_month_filter();
+            }
+        }
+    });
+}
+
 // ── App component ─────────────────────────────────────────────────────────────
 
 #[component]
@@ -246,6 +294,7 @@ pub fn App() -> impl IntoView {
     state.refresh_recent_files();
     load_layout_from_config(state);
     load_rules_from_config(state);
+    load_nicknames_from_config(state);
 
     // ── Global mouse-move handler (drag-resize) ───────────────────────────────
     let move_handle = window_event_listener(ev::mousemove, move |ev| {
@@ -417,6 +466,24 @@ pub fn App() -> impl IntoView {
                         ));
                         return;
                     }
+                }
+            }
+        }
+
+        // Trigger nickname modal on 'N' key press if the active pane holds an active selection.
+        if key.eq_ignore_ascii_case("n") {
+            let pane = state.active_pane.get_untracked();
+            let items = state.items_for(pane).get_untracked();
+            let sel = state.sel_for(pane).get_untracked();
+            if let Some(idx) = sel {
+                if idx < items.len() {
+                    ev.prevent_default();
+                    let selected_item = items[idx].clone();
+                    state.nickname_modal_item.set(Some(selected_item));
+                    state.log(format!(
+                        "[KeyDown] N  →  opening nickname modal for row {idx} in {pane}"
+                    ));
+                    return;
                 }
             }
         }
@@ -716,6 +783,36 @@ pub fn App() -> impl IntoView {
 
             // Rules manager modal: rendered only while open.
             {move || state.is_rules_modal_open.get().then(|| view! { <RulesModal /> })}
+
+            // Nicknames editor modal: rendered only while active.
+            {move || state.nickname_modal_item.get().map(|item| {
+                let vendor = item.txn.vendor.clone();
+                let escaped_vendor = crate::logic::escape_regex(&vendor);
+                let matched_rule = state.nickname_rules.get_untracked().into_iter().find(|r| r.regex == escaped_vendor);
+                let initial_regex = matched_rule.as_ref().map(|r| r.regex.clone()).unwrap_or(escaped_vendor);
+                let initial_nickname = matched_rule.as_ref().map(|r| r.nickname.clone()).unwrap_or_default();
+                
+                let on_save = move |rule: hho_types::NicknameRule| {
+                    spawn_local(async move {
+                        save_nickname_rule(state, rule).await;
+                      });
+                };
+                let on_cancel = move || {
+                    state.nickname_modal_item.set(None);
+                };
+                view! {
+                    <NicknameEditorModal
+                        preview_vendor=vendor
+                        initial_regex=initial_regex
+                        initial_nickname=initial_nickname
+                        on_save=on_save
+                        on_cancel=on_cancel
+                    />
+                }
+            })}
+
+            // Nicknames manager rules modal: rendered only while open.
+            {move || state.is_nickname_manager_open.get().then(|| view! { <NicknameRulesModal /> })}
 
             // Renders the manual transaction creation modal when open.
             {move || state.is_create_transaction_modal_open.get().then(|| view! { <CreateTransactionModal /> })}

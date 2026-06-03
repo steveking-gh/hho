@@ -96,6 +96,14 @@ pub fn Header() -> impl IntoView {
         state.is_rules_modal_open.set(true);
     };
 
+    // Opens the nickname manager modal.
+    let on_edit_nicknames = move |_| {
+        if state.any_modal_open() {
+            return;
+        }
+        state.is_nickname_manager_open.set(true);
+    };
+
 
 
 
@@ -172,6 +180,11 @@ pub fn Header() -> impl IntoView {
                 <button class="header-btn" on:click=on_edit_rules>
                     <span class="btn-icon">"📝"</span>
                     "Edit Rules"
+                </button>
+
+                <button class="header-btn" on:click=on_edit_nicknames>
+                    <span class="btn-icon">"🏷️"</span>
+                    "Edit Nicknames"
                 </button>
 
 

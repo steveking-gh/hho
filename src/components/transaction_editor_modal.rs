@@ -85,6 +85,7 @@ where
                 id: item.txn.id,
                 date: date_val,
                 vendor: vendor_val,
+                nickname: item.txn.nickname.clone(),
                 description: description_val,
                 category: category_val,
                 amount_cents: cents,
