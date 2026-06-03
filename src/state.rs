@@ -91,6 +91,8 @@ pub struct AppState {
     pub show_debug_log: RwSignal<bool>,
     // State signal controlling the transaction editing modal.
     pub editing_transaction_item: RwSignal<Option<Item>>,
+    // State signal controlling the transaction splitting modal.
+    pub split_transaction_item: RwSignal<Option<Item>>,
 }
 
 impl AppState {
@@ -130,6 +132,7 @@ impl AppState {
             print_target: RwSignal::new(None),
             show_debug_log: RwSignal::new(false),
             editing_transaction_item: RwSignal::new(None),
+            split_transaction_item: RwSignal::new(None),
         }
     }
 
@@ -138,6 +141,7 @@ impl AppState {
         self.pending_mapping.get_untracked().is_some()
             || self.assign_modal_item.get_untracked().is_some()
             || self.editing_transaction_item.get_untracked().is_some()
+            || self.split_transaction_item.get_untracked().is_some()
             || self.is_month_modal_open.get_untracked()
             || self.is_rules_modal_open.get_untracked()
             || self.is_create_transaction_modal_open.get_untracked()
@@ -424,6 +428,93 @@ mod tests {
     }
 
     #[test]
+    fn test_transaction_splitting_flow() {
+        let state = AppState::new();
+        state.selected_year.set(2026);
+        state.selected_month.set(5);
+
+        // Populate a single transaction to split.
+        state.raw_transactions.set(vec![Transaction {
+            id: Some(10),
+            date: "2026-05-15".to_string(),
+            vendor: "TARGET".to_string(),
+            category: "Shopping".to_string(),
+            amount_cents: 10000,
+            direction: Direction::Debit,
+            manual_pane: None,
+            ..Default::default()
+        }]);
+
+        // Define splits representing the desired target amounts, descriptions, and panes.
+        let splits = [
+            (3000, "Split part 1".to_string(), RulePane::Joint),
+            (7000, "Split part 2".to_string(), RulePane::Personal),
+        ];
+
+        let tx_id = Some(10);
+
+        // Execute transaction split logic.
+        state.raw_transactions.update(|txns| {
+            if let Some(pos) = txns.iter().position(|t| t.id == tx_id) {
+                let mut next_id = txns.iter().filter_map(|t| t.id).max().unwrap_or(0) + 1;
+                let base_txn = txns[pos].clone();
+
+                // Modify original transaction in-place for first split portion.
+                txns[pos].amount_cents = splits[0].0;
+                txns[pos].description = splits[0].1.clone();
+                txns[pos].manual_pane = Some(splits[0].2);
+
+                // Append copied transactions for remaining split portions.
+                #[allow(clippy::explicit_counter_loop)]
+                for split in splits.iter().skip(1) {
+                    let mut new_txn = base_txn.clone();
+                    new_txn.id = Some(next_id);
+                    next_id += 1;
+                    new_txn.amount_cents = split.0;
+                    new_txn.description = split.1.clone();
+                    new_txn.manual_pane = Some(split.2);
+                    txns.push(new_txn);
+                }
+            }
+        });
+
+        // Verify state updates in raw transactions.
+        let updated = state.raw_transactions.get();
+        assert_eq!(updated.len(), 2);
+
+        // Validate first split transaction properties.
+        assert_eq!(updated[0].id, Some(10));
+        assert_eq!(updated[0].amount_cents, 3000);
+        assert_eq!(updated[0].description, "Split part 1");
+        assert_eq!(updated[0].manual_pane, Some(RulePane::Joint));
+        assert_eq!(updated[0].vendor, "TARGET");
+        assert_eq!(updated[0].date, "2026-05-15");
+
+        // Validate second split transaction properties.
+        assert_eq!(updated[1].id, Some(11));
+        assert_eq!(updated[1].amount_cents, 7000);
+        assert_eq!(updated[1].description, "Split part 2");
+        assert_eq!(updated[1].manual_pane, Some(RulePane::Personal));
+        assert_eq!(updated[1].vendor, "TARGET");
+        assert_eq!(updated[1].date, "2026-05-15");
+
+        // Apply month filter to update interactive UI panes.
+        state.apply_month_filter();
+
+        // Verify routing of split transactions to designated panes.
+        let left_items = state.left_items.get();
+        assert_eq!(left_items.len(), 1);
+        assert_eq!(left_items[0].txn.id, Some(10));
+        assert_eq!(left_items[0].txn.description, "Split part 1");
+
+        let right_items = state.right_items.get();
+        assert_eq!(right_items.len(), 1);
+        assert_eq!(right_items[0].txn.id, Some(11));
+        assert_eq!(right_items[0].txn.description, "Split part 2");
+    }
+
+    #[test]
+
     fn test_apply_month_filter_ignored_pane_credit() {
         let state = AppState::new();
         state.selected_year.set(2026);

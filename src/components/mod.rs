@@ -10,4 +10,5 @@ pub mod rules_modal;
 pub mod print_view;
 pub mod transaction_editor_modal;
 pub mod draggable;
+pub mod split_transaction_modal;
 

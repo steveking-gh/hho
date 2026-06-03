@@ -1197,3 +1197,240 @@ body {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Split transaction modal styling
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.split-modal {
+  width: 76rem;
+  max-width: 95vw;
+  min-height: 46rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-reference-panel {
+  background-color: #1a1a1a;
+  border: 0.1rem solid #333;
+  padding: 1.2rem;
+  margin-bottom: 1.6rem;
+  border-radius: 0.4rem;
+}
+
+.split-reference-panel .ref-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+  color: #888;
+  margin-bottom: 0.8rem;
+}
+
+.split-reference-panel .ref-grid {
+  display: flex;
+  gap: 3rem;
+  font-size: 1.3rem;
+}
+
+.split-reference-panel .ref-label {
+  color: #666;
+  margin-right: 0.6rem;
+}
+
+.split-reference-panel .ref-val {
+  color: #e0e0e0;
+  font-weight: 700;
+}
+
+.split-headers {
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+  color: #666;
+  border-bottom: 0.1rem solid #333;
+  margin-bottom: 0.8rem;
+  gap: 1rem;
+}
+
+.split-headers .header-desc {
+  flex: 2;
+}
+
+.split-headers .header-amount {
+  width: 12rem;
+  text-align: right;
+  padding-right: 0.8rem;
+}
+
+.split-headers .header-pane {
+  width: 32rem;
+  text-align: center;
+}
+
+.split-headers .header-action {
+  width: 3rem;
+}
+
+.split-rows-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 35vh;
+  border: 0.1rem solid #2a2a2a;
+  border-radius: 0.4rem;
+  background-color: #151515;
+}
+
+.split-row-item {
+  display: flex;
+  align-items: center;
+  padding: 0.8rem;
+  border-bottom: 0.1rem solid #262626;
+  gap: 1rem;
+}
+
+.split-row-item:last-child {
+  border-bottom: none;
+}
+
+.split-row-desc {
+  flex: 2;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  border: 0.1rem solid #444;
+  border-radius: 0.3rem;
+  padding: 0.5rem 0.8rem;
+  font-family: inherit;
+  font-size: 1.2rem;
+}
+
+.split-row-desc:focus {
+  border-color: rgb(245, 166, 35);
+  outline: none;
+  box-shadow: 0 0 0.3rem rgba(245, 166, 35, 0.25);
+}
+
+.split-row-amount {
+  width: 12rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  border: 0.1rem solid #444;
+  border-radius: 0.3rem;
+  padding: 0.5rem 0.8rem;
+  font-family: inherit;
+  font-size: 1.2rem;
+  text-align: right;
+}
+
+.split-row-amount:focus {
+  border-color: rgb(245, 166, 35);
+  outline: none;
+  box-shadow: 0 0 0.3rem rgba(245, 166, 35, 0.25);
+}
+
+.split-row-panes {
+  width: 32rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.split-pane-btn {
+  flex: 1;
+  background-color: #1e1e1e;
+  border: 0.1rem solid #444;
+  color: #888;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  border-radius: 0.3rem;
+  font-size: 1.1rem;
+  font-family: inherit;
+  transition: all 0.12s ease;
+}
+
+.split-pane-btn:hover {
+  border-color: rgb(245, 166, 35);
+  color: #ccc;
+}
+
+.split-pane-btn.active {
+  background-color: rgba(245, 166, 35, 0.15);
+  border-color: rgb(245, 166, 35);
+  color: rgb(245, 165, 35);
+  font-weight: 700;
+}
+
+.split-row-action {
+  width: 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.split-row-delete {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.3rem;
+  transition: all 0.12s ease;
+}
+
+.split-row-delete:hover {
+  color: #ff5555;
+  background-color: rgba(255, 85, 85, 0.08);
+}
+
+.split-controls-row {
+  padding: 1.2rem 0;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.add-split-row-btn {
+  font-size: 1.2rem;
+}
+
+.split-validation-panel {
+  margin-top: 1.2rem;
+  margin-bottom: 1.6rem;
+}
+
+.validation-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1.2rem;
+  font-size: 1.3rem;
+  border-radius: 0.4rem;
+}
+
+.validation-status .status-icon {
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.validation-status.status-valid {
+  background-color: rgba(78, 201, 78, 0.12);
+  color: #4ec94e;
+  border: 0.1rem solid rgba(78, 201, 78, 0.35);
+}
+
+.validation-status.status-invalid {
+  background-color: rgba(245, 166, 35, 0.08);
+  color: rgb(245, 165, 35);
+  border: 0.1rem solid rgba(245, 166, 35, 0.3);
+}
+
+.row-action-btn.split-btn:hover {
+  color: #38bdf8;
+}
+

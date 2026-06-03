@@ -221,18 +221,14 @@ pub fn escape_regex(input: &str) -> String {
 
 /// Formats a transaction as a single-line pane label.
 /// Indicates debit flow with a leading negative sign and credit flow with a leading positive sign.
+/// Always returns a five-column layout containing date, vendor, description, amount, and category.
 pub fn format_txn(t: &hho_types::Transaction) -> String {
-    if let Some(ref cols) = t.row_cols {
-        cols.join(" │ ")
-    } else {
-        let amount =
-            hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
-        if t.description.is_empty() {
-            format!("{} │ {} │ {} │ {}", t.date, t.vendor, amount, t.category)
-        } else {
-            format!("{} │ {} │ {} │ {} │ {}", t.date, t.vendor, t.description, amount, t.category)
-        }
-    }
+    let amount =
+        hho_types::format_dollars_signed(hho_types::net_cents(t.amount_cents, t.direction));
+    format!(
+        "{} │ {} │ {} │ {} │ {}",
+        t.date, t.vendor, t.description, amount, t.category
+    )
 }
 
 /// A compiled cache of an auto-assign rule for fast/repeated matching.
@@ -912,5 +908,42 @@ mod tests {
 
         // Unassigned middle should be empty since all 3 matched a rule
         assert!(middle.is_empty());
+    }
+
+    #[test]
+    fn test_format_txn_output() {
+        use hho_types::{Direction, Transaction};
+
+        // Construct transaction with populated description.
+        let txn_with_desc = Transaction {
+            id: None,
+            date: "2026-05-15".to_string(),
+            vendor: "STARBUCKS".to_string(),
+            description: "Seattle branch".to_string(),
+            category: "Coffee".to_string(),
+            amount_cents: 450,
+            direction: Direction::Debit,
+            ..Default::default()
+        };
+
+        // Construct transaction with empty description.
+        let txn_no_desc = Transaction {
+            id: None,
+            date: "2026-05-16".to_string(),
+            vendor: "NETFLIX".to_string(),
+            description: "".to_string(),
+            category: "Streaming".to_string(),
+            amount_cents: 1599,
+            direction: Direction::Debit,
+            ..Default::default()
+        };
+
+        // Assert formatted output containing description.
+        let label1 = format_txn(&txn_with_desc);
+        assert_eq!(label1, "2026-05-15 │ STARBUCKS │ Seattle branch │ -$4.50 │ Coffee");
+
+        // Assert formatted output containing empty description column.
+        let label2 = format_txn(&txn_no_desc);
+        assert_eq!(label2, "2026-05-16 │ NETFLIX │  │ -$15.99 │ Streaming");
     }
 }

@@ -18,6 +18,7 @@ use crate::components::{
     resize_handle::{ResizeDir, ResizeHandle},
     rule_editor_modal::RuleEditorModal,
     rules_modal::RulesModal,
+    split_transaction_modal::SplitTransactionModal,
     transaction_editor_modal::TransactionEditorModal,
 };
 use crate::dto::{OpenResult, PendingMapping};
@@ -400,6 +401,26 @@ pub fn App() -> impl IntoView {
             }
         }
 
+        // Trigger split transaction modal on 'S' key press if Unassigned pane holds active selection.
+        if key.eq_ignore_ascii_case("s") {
+            let pane = state.active_pane.get_untracked();
+            if pane == ActivePane::Middle {
+                let items = state.middle_items.get_untracked();
+                let sel = state.middle_sel.get_untracked();
+                if let Some(idx) = sel {
+                    if idx < items.len() {
+                        ev.prevent_default();
+                        let selected_item = items[idx].clone();
+                        state.split_transaction_item.set(Some(selected_item));
+                        state.log(format!(
+                            "[KeyDown] S  →  opening split transaction modal for row {idx}"
+                        ));
+                        return;
+                    }
+                }
+            }
+        }
+
         // ── Arrow-key guard ───────────────────────────────────────────────────
         if !matches!(
             key.as_str(),
@@ -640,6 +661,52 @@ pub fn App() -> impl IntoView {
                 };
                 view! {
                     <TransactionEditorModal
+                        item=item.clone()
+                        on_save=on_save
+                        on_cancel=on_cancel
+                    />
+                }
+            })}
+
+            // Renders the split transaction modal when active.
+            {move || state.split_transaction_item.get().map(|item| {
+                let tx_id = item.txn.id;
+                let on_save = move |splits: Vec<(i64, String, hho_types::RulePane)>| {
+                    if splits.is_empty() {
+                        return;
+                    }
+                    state.raw_transactions.update(|txns| {
+                        // Locate the original transaction in the raw transactions list by ID.
+                        if let Some(pos) = txns.iter().position(|t| t.id == tx_id) {
+                            let mut next_id = txns.iter().filter_map(|t| t.id).max().unwrap_or(0) + 1;
+                            let base_txn = txns[pos].clone();
+                            
+                            // Process the first split portion in-place on the original transaction.
+                            txns[pos].amount_cents = splits[0].0;
+                            txns[pos].description = splits[0].1.clone();
+                            txns[pos].manual_pane = Some(splits[0].2);
+                            
+                            // Create copy transactions for the remaining split portions.
+                            #[allow(clippy::explicit_counter_loop)]
+                            for split in splits.iter().skip(1) {
+                                let mut new_txn = base_txn.clone();
+                                new_txn.id = Some(next_id);
+                                next_id += 1;
+                                new_txn.amount_cents = split.0;
+                                new_txn.description = split.1.clone();
+                                new_txn.manual_pane = Some(split.2);
+                                txns.push(new_txn);
+                            }
+                        }
+                    });
+                    state.apply_month_filter();
+                    state.split_transaction_item.set(None);
+                };
+                let on_cancel = move || {
+                    state.split_transaction_item.set(None);
+                };
+                view! {
+                    <SplitTransactionModal
                         item=item.clone()
                         on_save=on_save
                         on_cancel=on_cancel
