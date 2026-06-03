@@ -65,6 +65,12 @@ struct UserConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     window_height: Option<f64>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window_x: Option<f64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window_y: Option<f64>,
+
     // ── Saved column mappings ───────────────────────────────────────────────────
     // Declared LAST: TOML requires array-of-tables to follow all scalar fields.
     #[serde(default)]
@@ -296,12 +302,22 @@ fn save_layout(
     save_config(&cfg);
 }
 
-/// Persist window dimensions after the OS window is resized.
+/// Persist window dimensions and position after the OS window is resized.
 #[tauri::command]
-fn save_window_size(width: f64, height: f64, state: State<'_, ConfigState>) {
+fn save_window_size(
+    width: f64,
+    height: f64,
+    window: tauri::Window,
+    state: State<'_, ConfigState>,
+) {
     let mut cfg = state.config.lock().unwrap();
     cfg.window_width = Some(width);
     cfg.window_height = Some(height);
+    if let (Ok(physical_pos), Ok(scale_factor)) = (window.outer_position(), window.scale_factor()) {
+        let logical_pos = physical_pos.to_logical::<f64>(scale_factor);
+        cfg.window_x = Some(logical_pos.x);
+        cfg.window_y = Some(logical_pos.y);
+    }
     save_config(&cfg);
 }
 
@@ -458,16 +474,60 @@ pub fn run() {
         .setup(|app| {
             let cfg = load_config();
 
-            // Restore window geometry before the window becomes visible.
             let win_w = cfg.window_width.unwrap_or(DEFAULT_WIN_W);
             let win_h = cfg.window_height.unwrap_or(DEFAULT_WIN_H);
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.set_size(tauri::LogicalSize::new(win_w, win_h));
-            }
+            let win_x = cfg.window_x;
+            let win_y = cfg.window_y;
 
+            // Manage configuration state prior to window listener registration.
             app.manage(ConfigState {
                 config: Mutex::new(cfg),
             });
+
+            if let Some(win) = app.get_webview_window("main") {
+                // Restore window size and position.
+                let _ = win.set_size(tauri::LogicalSize::new(win_w, win_h));
+                if let (Some(x), Some(y)) = (win_x, win_y) {
+                    let _ = win.set_position(tauri::LogicalPosition::new(x, y));
+                }
+
+                // Register native move and resize listener to save geometry.
+                let app_handle = app.handle().clone();
+                let save_pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+                win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) = event {
+                        let save_pending = save_pending.clone();
+                        let app_handle = app_handle.clone();
+
+                        if !save_pending.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                save_pending.store(false, std::sync::atomic::Ordering::SeqCst);
+
+                                if let Some(w) = app_handle.get_webview_window("main") {
+                                    if let (Ok(physical_size), Ok(physical_pos)) = (w.outer_size(), w.outer_position()) {
+                                        if let Ok(scale_factor) = w.scale_factor() {
+                                            let logical_size = physical_size.to_logical::<f64>(scale_factor);
+                                            let logical_pos = physical_pos.to_logical::<f64>(scale_factor);
+
+                                            // Lock global configuration state and update window parameters.
+                                            let state = app_handle.state::<ConfigState>();
+                                            let mut cfg = state.config.lock().unwrap();
+                                            cfg.window_width = Some(logical_size.width);
+                                            cfg.window_height = Some(logical_size.height);
+                                            cfg.window_x = Some(logical_pos.x);
+                                            cfg.window_y = Some(logical_pos.y);
+                                            save_config(&cfg);
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -535,6 +595,8 @@ mod tests {
             debug_h: Some(130.0),
             window_width: Some(1200.0),
             window_height: Some(800.0),
+            window_x: Some(100.0),
+            window_y: Some(150.0),
             institutions: vec![],
             auto_assign_rules: vec![],
         };
@@ -544,6 +606,7 @@ mod tests {
         assert_eq!(recovered.last_opened_dir, original.last_opened_dir);
         assert_eq!(recovered.left_width, original.left_width);
         assert_eq!(recovered.window_width, original.window_width);
+        assert_eq!(recovered.window_x, original.window_x);
     }
 
     #[test]
@@ -583,6 +646,8 @@ mod tests {
             debug_h: None,
             window_width: None,
             window_height: None,
+            window_x: None,
+            window_y: None,
             auto_assign_rules: vec![],
             institutions: vec![hho_types::Institution {
                 name: "Chase".into(),
@@ -615,6 +680,8 @@ mod tests {
             debug_h: None,
             window_width: None,
             window_height: None,
+            window_x: None,
+            window_y: None,
             institutions: vec![],
             auto_assign_rules: vec![
                 AutoAssignRule {
