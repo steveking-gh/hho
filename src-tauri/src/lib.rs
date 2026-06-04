@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-use hho_types::{AmazonOrder, AutoAssignRule, Institution, LayoutConfig, NicknameRule, OpenResult, Transaction};
+use hho_types::{AmazonItem, AmazonOrder, AutoAssignRule, Institution, LayoutConfig, NicknameRule, OpenResult, Transaction};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -371,6 +371,138 @@ fn save_nickname_rules(rules: Vec<NicknameRule>, state: State<'_, ConfigState>) 
     save_config(&cfg);
 }
 
+// Parse Amazon order and item columns into a unified domain order list.
+// Supports both row-per-order (with items list) and row-per-item CSV schemas.
+fn parse_amazon_csv_data(
+    headers: &[String],
+    rows: &[Vec<String>],
+) -> Result<Vec<AmazonOrder>, String> {
+    // Determine parsing mode based on presence of items column.
+    let has_items_col = headers.iter().any(|h| h.trim().to_lowercase() == "items");
+
+    let mut orders: Vec<AmazonOrder> = Vec::new();
+
+    if has_items_col {
+        // Parse using original Orders CSV structure.
+        let order_id_idx = headers
+            .iter()
+            .position(|h| h.trim().to_lowercase() == "order id")
+            .ok_or_else(|| "missing 'order id' column in Amazon CSV".to_string())?;
+        let date_idx = headers
+            .iter()
+            .position(|h| h.trim().to_lowercase() == "date")
+            .ok_or_else(|| "missing 'date' column in Amazon CSV".to_string())?;
+        let total_idx = headers
+            .iter()
+            .position(|h| h.trim().to_lowercase() == "total")
+            .ok_or_else(|| "missing 'total' column in Amazon CSV".to_string())?;
+        let items_idx = headers
+            .iter()
+            .position(|h| h.trim().to_lowercase() == "items")
+            .ok_or_else(|| "missing 'items' column in Amazon CSV".to_string())?;
+
+        for row in rows {
+            if row.len() <= order_id_idx
+                || row.len() <= date_idx
+                || row.len() <= total_idx
+                || row.len() <= items_idx
+            {
+                continue;
+            }
+
+            let order_id = row[order_id_idx].trim().to_string();
+            let date = row[date_idx].trim().to_string();
+            let total_str = &row[total_idx];
+            let items_str = &row[items_idx];
+
+            if order_id.is_empty() || date.is_empty() {
+                continue;
+            }
+
+            let total_cents = hho_types::parse_amount_cents(total_str).unwrap_or(0);
+
+            let items: Vec<AmazonItem> = items_str
+                .split(';')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .map(|title| AmazonItem {
+                    title,
+                    price_cents: None,
+                })
+                .collect();
+
+            orders.push(AmazonOrder {
+                order_id,
+                date,
+                total_cents,
+                items,
+            });
+        }
+    } else {
+        // Parse using new Items CSV structure.
+        let find_col = |names: &[&str], desc: &str| -> Result<usize, String> {
+            headers
+                .iter()
+                .position(|h| {
+                    let h_norm = h.trim().to_lowercase();
+                    names.iter().any(|n| h_norm == *n)
+                })
+                .ok_or_else(|| format!("missing '{}' column in Amazon CSV", desc))
+        };
+
+        let order_id_idx = find_col(&["order id", "order_id", "order number", "order_number", "id"], "order id")?;
+        let date_idx = find_col(&["date", "order date", "order_date"], "date")?;
+        let title_idx = find_col(&["title", "product name", "description", "item description", "product title", "item"], "title")?;
+        let price_idx = find_col(&["price", "unit price", "item price", "total"], "price")?;
+
+        let mut order_id_to_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+        for row in rows {
+            if row.len() <= order_id_idx
+                || row.len() <= date_idx
+                || row.len() <= title_idx
+                || row.len() <= price_idx
+            {
+                continue;
+            }
+
+            let order_id = row[order_id_idx].trim().to_string();
+            let date = row[date_idx].trim().to_string();
+            let title = row[title_idx].trim().to_string();
+            let price_str = &row[price_idx];
+
+            if order_id.is_empty() || date.is_empty() || title.is_empty() {
+                continue;
+            }
+
+            let price_cents = hho_types::parse_amount_cents(price_str);
+
+            let item = AmazonItem {
+                title,
+                price_cents,
+            };
+
+            if let Some(&idx) = order_id_to_idx.get(&order_id) {
+                if let Some(cents) = price_cents {
+                    orders[idx].total_cents += cents;
+                }
+                orders[idx].items.push(item);
+            } else {
+                let idx = orders.len();
+                order_id_to_idx.insert(order_id.clone(), idx);
+                orders.push(AmazonOrder {
+                    order_id,
+                    date,
+                    total_cents: price_cents.unwrap_or(0),
+                    items: vec![item],
+                });
+            }
+        }
+    }
+
+    Ok(orders)
+}
+
 #[tauri::command]
 async fn pick_amazon_orders(
     window: tauri::Window,
@@ -382,60 +514,7 @@ async fn pick_amazon_orders(
     };
 
     let (headers, rows) = read_csv_table(&path)?;
-
-    let order_id_idx = headers
-        .iter()
-        .position(|h| h.to_lowercase() == "order id")
-        .ok_or_else(|| "missing 'order id' column in Amazon CSV".to_string())?;
-    let date_idx = headers
-        .iter()
-        .position(|h| h.to_lowercase() == "date")
-        .ok_or_else(|| "missing 'date' column in Amazon CSV".to_string())?;
-    let total_idx = headers
-        .iter()
-        .position(|h| h.to_lowercase() == "total")
-        .ok_or_else(|| "missing 'total' column in Amazon CSV".to_string())?;
-    let items_idx = headers
-        .iter()
-        .position(|h| h.to_lowercase() == "items")
-        .ok_or_else(|| "missing 'items' column in Amazon CSV".to_string())?;
-
-    let mut orders = Vec::new();
-    for row in rows {
-        if row.len() <= order_id_idx
-            || row.len() <= date_idx
-            || row.len() <= total_idx
-            || row.len() <= items_idx
-        {
-            continue;
-        }
-
-        let order_id = row[order_id_idx].trim().to_string();
-        let date = row[date_idx].trim().to_string();
-        let total_str = &row[total_idx];
-        let items_str = &row[items_idx];
-
-        if order_id.is_empty() || date.is_empty() {
-            continue;
-        }
-
-        let total_cents = hho_types::parse_amount_cents(total_str).unwrap_or(0);
-
-        let items: Vec<String> = items_str
-            .split(';')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        orders.push(AmazonOrder {
-            order_id,
-            date,
-            total_cents,
-            items,
-        });
-    }
-
-    Ok(orders)
+    parse_amazon_csv_data(&headers, &rows)
 }
 
 /// Saves transactions of a selected pane to a CSV file.
@@ -979,61 +1058,118 @@ Travel,-286.97
 
     #[test]
     fn test_parse_amazon_orders_csv_format() {
-        let dir = std::env::temp_dir();
-        let path = dir.join("test_amazon_orders.csv");
+        let headers = vec![
+            "order id".to_string(),
+            "order url".to_string(),
+            "items".to_string(),
+            "to".to_string(),
+            "date".to_string(),
+            "total".to_string(),
+        ];
+        let rows = vec![
+            vec![
+                "113-3983825-0231454".to_string(),
+                "https://amazon.com/url".to_string(),
+                "OXO Good Grips; YIMITEE Brush; 1/2 Teaspoon; ".to_string(),
+                "Steve King".to_string(),
+                "2026-06-01".to_string(),
+                "42.28".to_string(),
+            ],
+            vec![
+                "113-8688736-7549016".to_string(),
+                "https://amazon.com/url".to_string(),
+                "Golf Ball Retriever; ".to_string(),
+                "Steve King".to_string(),
+                "2026-05-24".to_string(),
+                "0.00".to_string(),
+            ],
+            vec![
+                "113-3226450-8453018".to_string(),
+                "https://amazon.com/url".to_string(),
+                "Door Shoe Organizer; ".to_string(),
+                "Steve King".to_string(),
+                "2026-05-18".to_string(),
+                "29.99".to_string(),
+            ],
+        ];
 
-        let csv_content = "\
-order id,order url,items,to,date,total,shipping,shipping_refund,gift,tax,refund,payments
-113-3983825-0231454,https://amazon.com/url,\"OXO Good Grips; YIMITEE Brush; 1/2 Teaspoon; \",Steve King,2026-06-01,42.28,0,,,0,,Prime Visa
-113-8688736-7549016,https://amazon.com/url,Golf Ball Retriever; ,Steve King,2026-05-24,0.00,0,,,0,,Prime Visa
-113-3226450-8453018,https://amazon.com/url,Door Shoe Organizer; ,Steve King,2026-05-18,29.99,0,,,0,,Prime Visa
-";
-        std::fs::write(&path, csv_content).unwrap();
-
-        let (headers, rows) = read_csv_table(&path).unwrap();
-        assert_eq!(headers.len(), 12);
-        assert_eq!(rows.len(), 3);
-
-        let order_id_idx = headers.iter().position(|h| h.to_lowercase() == "order id").unwrap();
-        let date_idx = headers.iter().position(|h| h.to_lowercase() == "date").unwrap();
-        let total_idx = headers.iter().position(|h| h.to_lowercase() == "total").unwrap();
-        let items_idx = headers.iter().position(|h| h.to_lowercase() == "items").unwrap();
-
-        let mut orders = Vec::new();
-        for row in rows {
-            let order_id = row[order_id_idx].trim().to_string();
-            let date = row[date_idx].trim().to_string();
-            let total_cents = hho_types::parse_amount_cents(&row[total_idx]).unwrap_or(0);
-            let items: Vec<String> = row[items_idx]
-                .split(';')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            orders.push(AmazonOrder {
-                order_id,
-                date,
-                total_cents,
-                items,
-            });
-        }
+        let orders = parse_amazon_csv_data(&headers, &rows).unwrap();
 
         assert_eq!(orders.len(), 3);
         assert_eq!(orders[0].order_id, "113-3983825-0231454");
         assert_eq!(orders[0].date, "2026-06-01");
         assert_eq!(orders[0].total_cents, 4228);
-        assert_eq!(orders[0].items, vec![
-            "OXO Good Grips".to_string(),
-            "YIMITEE Brush".to_string(),
-            "1/2 Teaspoon".to_string()
-        ]);
+        assert_eq!(orders[0].items.len(), 3);
+        assert_eq!(orders[0].items[0].title, "OXO Good Grips");
+        assert_eq!(orders[0].items[0].price_cents, None);
+        assert_eq!(orders[0].items[1].title, "YIMITEE Brush");
+        assert_eq!(orders[0].items[1].price_cents, None);
+        assert_eq!(orders[0].items[2].title, "1/2 Teaspoon");
+        assert_eq!(orders[0].items[2].price_cents, None);
 
         assert_eq!(orders[1].total_cents, 0);
-        assert_eq!(orders[1].items, vec!["Golf Ball Retriever".to_string()]);
+        assert_eq!(orders[1].items.len(), 1);
+        assert_eq!(orders[1].items[0].title, "Golf Ball Retriever");
 
         assert_eq!(orders[2].total_cents, 2999);
-        assert_eq!(orders[2].items, vec!["Door Shoe Organizer".to_string()]);
+        assert_eq!(orders[2].items.len(), 1);
+        assert_eq!(orders[2].items[0].title, "Door Shoe Organizer");
+    }
 
-        let _ = std::fs::remove_file(&path);
+    #[test]
+    fn test_parse_amazon_items_csv_format() {
+        let headers = vec![
+            "Order ID".to_string(),
+            "Date".to_string(),
+            "Title".to_string(),
+            "Price".to_string(),
+        ];
+        let rows = vec![
+            vec![
+                "113-3983825-0231454".to_string(),
+                "2026-06-01".to_string(),
+                "OXO Good Grips Dispenser".to_string(),
+                "$16.90".to_string(),
+            ],
+            vec![
+                "113-3983825-0231454".to_string(),
+                "2026-06-01".to_string(),
+                "YIMITEE Oil Dispenser".to_string(),
+                "$17.99".to_string(),
+            ],
+            vec![
+                "113-3983825-0231454".to_string(),
+                "2026-06-01".to_string(),
+                "1/2 Teaspoon".to_string(),
+                "$7.39".to_string(),
+            ],
+            vec![
+                "113-8688736-7549016".to_string(),
+                "2026-05-24".to_string(),
+                "Golf Ball Retriever".to_string(),
+                "$14.99".to_string(),
+            ],
+        ];
+
+        let orders = parse_amazon_csv_data(&headers, &rows).unwrap();
+
+        assert_eq!(orders.len(), 2);
+        assert_eq!(orders[0].order_id, "113-3983825-0231454");
+        assert_eq!(orders[0].date, "2026-06-01");
+        assert_eq!(orders[0].total_cents, 1690 + 1799 + 739);
+        assert_eq!(orders[0].items.len(), 3);
+        assert_eq!(orders[0].items[0].title, "OXO Good Grips Dispenser");
+        assert_eq!(orders[0].items[0].price_cents, Some(1690));
+        assert_eq!(orders[0].items[1].title, "YIMITEE Oil Dispenser");
+        assert_eq!(orders[0].items[1].price_cents, Some(1799));
+        assert_eq!(orders[0].items[2].title, "1/2 Teaspoon");
+        assert_eq!(orders[0].items[2].price_cents, Some(739));
+
+        assert_eq!(orders[1].order_id, "113-8688736-7549016");
+        assert_eq!(orders[1].date, "2026-05-24");
+        assert_eq!(orders[1].total_cents, 1499);
+        assert_eq!(orders[1].items.len(), 1);
+        assert_eq!(orders[1].items[0].title, "Golf Ball Retriever");
+        assert_eq!(orders[1].items[0].price_cents, Some(1499));
     }
 }

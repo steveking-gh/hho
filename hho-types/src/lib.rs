@@ -324,13 +324,20 @@ pub struct SaveAutoAssignRulesArgs {
     pub rules: Vec<AutoAssignRule>,
 }
 
+/// Represents an individual item parsed from an Amazon orders or items document.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AmazonItem {
+    pub title: String,
+    pub price_cents: Option<i64>,
+}
+
 /// Represents an Amazon order parsed from the order history CSV.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AmazonOrder {
     pub order_id: String,
     pub date: String,
     pub total_cents: i64,
-    pub items: Vec<String>,
+    pub items: Vec<AmazonItem>,
 }
 
 /// Represents a rule mapping a vendor name pattern to a simplified nickname.

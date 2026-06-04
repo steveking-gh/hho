@@ -84,18 +84,12 @@ where
             let mut candidates = Vec::new();
             for order in orders {
                 let diff = date_diff_days(&order.date, &txn_date);
-                if diff <= 3 {
-                    let score = if order.total_cents == txn_amount { 0 } else { 1 };
-                    candidates.push((score, diff, order));
+                if diff <= 3 && order.total_cents == txn_amount {
+                    candidates.push((diff, order));
                 }
             }
-            candidates.sort_by(|a, b| {
-                match a.0.cmp(&b.0) {
-                    std::cmp::Ordering::Equal => a.1.cmp(&b.1),
-                    other => other,
-                }
-            });
-            candidates.into_iter().map(|c| c.2).collect::<Vec<_>>()
+            candidates.sort_by(|a, b| a.0.cmp(&b.0));
+            candidates.into_iter().map(|c| c.1).collect::<Vec<_>>()
         })
     };
 
@@ -274,15 +268,21 @@ where
                                                     draft_rows.update(|rows| {
                                                         rows.clear();
                                                         let items_count = order.items.len();
-                                                        for item_name in &order.items {
-                                                            let initial_amt = if items_count == 1 {
+                                                        for item in &order.items {
+                                                            let initial_amt = if let Some(price) = item.price_cents {
+                                                                if price > 0 {
+                                                                    hho_types::format_dollars(price)
+                                                                  } else {
+                                                                    "".to_string()
+                                                                  }
+                                                            } else if items_count == 1 {
                                                                 hho_types::format_dollars(original_total_cents)
                                                             } else {
                                                                 "".to_string()
                                                             };
                                                             rows.push(SplitDraftRow {
                                                                 amount_input: RwSignal::new(initial_amt),
-                                                                description: RwSignal::new(item_name.clone()),
+                                                                description: RwSignal::new(item.title.clone()),
                                                                 target_pane: RwSignal::new(original_pane),
                                                             });
                                                         }
@@ -300,7 +300,14 @@ where
                                                             })}
                                                         </div>
                                                         <ul class="amazon-order-items">
-                                                            {order.items.iter().map(|it| view! { <li>{it.clone()}</li> }).collect_view()}
+                                                            {order.items.iter().map(|it| {
+                                                                let text = if let Some(price) = it.price_cents {
+                                                                    format!("{} ({})", it.title, hho_types::format_dollars(price))
+                                                                } else {
+                                                                    it.title.clone()
+                                                                };
+                                                                view! { <li>{text}</li> }
+                                                            }).collect_view()}
                                                         </ul>
                                                         <div class="amazon-order-footer">
                                                             <button
